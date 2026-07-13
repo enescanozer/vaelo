@@ -1,0 +1,26 @@
+{
+  "name": "latent",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "db:sync": "node scripts/migrationlari-esitle.mjs",
+    "db:push": "npm run db:sync && npx supabase db push",
+    "fn:deploy": "npx supabase functions deploy",
+    "og:test": "node scripts/og-testi.mjs",
+    "dil:kontrol": "node scripts/dil-kontrol.mjs",
+    "kontrol": "node scripts/kontrol.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.8"
+  }
+}

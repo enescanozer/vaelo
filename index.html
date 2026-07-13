@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Latent — AI-made films & series</title>
+    <meta
+      name="description"
+      content="Latent — films and series made entirely with AI. Always free to watch."
+    />
+    <meta property="og:title" content="Latent — AI-made films & series" />
+    <meta
+      property="og:description"
+      content="Films and series made entirely with AI. Always free to watch."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="theme-color" content="#0A0A0B" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* Küresel sıfırlama — geri kalan tüm stiller bileşenlerde inline */
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: #0a0a0b;
+        color: #eceee9;
+        font-family: "Hanken Grotesk", sans-serif;
+      }
+      button { font-family: inherit; cursor: pointer; }
+      input, select, textarea { font-family: inherit; }
+      ::selection { background: #cdff4a; color: #0a0a0b; }
+
+      /* Erişilebilirlik: klavyeyle gezinirken görünür odak halkası */
+      button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+        outline: 2px solid rgba(205, 255, 74, 0.45);
+        outline-offset: 2px;
+      }
+
+      /* Düğmelerde yumuşak geçiş + basılınca hafif çökme hissi */
+      button {
+        transition: filter 0.15s ease, background 0.15s ease, border-color 0.15s ease,
+          color 0.15s ease, transform 0.1s ease;
+      }
+      button:not(:disabled):hover { filter: brightness(1.18); }
+      button:not(:disabled):active { transform: scale(0.97); }
+
+      /* Kart hover'ı: hafif kalkma + görselde sinematik yakınlaşma */
+      .kart { transition: transform 0.15s ease; }
+      .kart img { transition: transform 0.3s ease; }
+      @media (hover: hover) {
+        .kart:hover { transform: translateY(-3px); }
+        .kart:hover img { transform: scale(1.06); }
+      }
+
+      /* Raf şeritleri: kaydırma çubuğu gizli + nazik kaydırma durakları */
+      .raf-seridi { scrollbar-width: none; scroll-snap-type: x proximity; }
+      .raf-seridi::-webkit-scrollbar { display: none; }
+      .raf-seridi > * { scroll-snap-align: start; }
+
+      /* Ekran geçişinde nazik belirme */
+      @keyframes belir {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: none; }
+      }
+      main > div { animation: belir 0.25s ease; }
+
+      /* İnce koyu kaydırma çubuğu (sayfa geneli) */
+      ::-webkit-scrollbar { width: 10px; height: 10px; }
+      ::-webkit-scrollbar-thumb { background: #222226; border-radius: 5px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+
+      /* Yüklenme iskeleti: nabız animasyonu */
+      @keyframes nabiz {
+        0%, 100% { opacity: 0.45; }
+        50% { opacity: 1; }
+      }
+      .iskelet {
+        background: #15151a;
+        border-radius: 8px;
+        animation: nabiz 1.4s ease-in-out infinite;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

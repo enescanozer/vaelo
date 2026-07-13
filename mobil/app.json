@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Latent",
+    "slug": "latent",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0A0A0B",
+    "android": {
+      "package": "app.latent.mobil"
+    },
+    "ios": {
+      "bundleIdentifier": "app.latent.mobil"
+    },
+    "plugins": [
+      "expo-asset"
+    ]
+  }
+}
