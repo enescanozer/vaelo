@@ -1,4 +1,4 @@
-// Latent mobil (Expo) — ince izleyici istemcisi: web ile AYNI Supabase backend'i.
+// Vaelo mobil (Expo) — ince izleyici istemcisi: web ile AYNI Supabase backend'i.
 // Düzen: Keşfet = hero + AÇIKLAMALI dikey akış (YouTube/Netflix mobil hissi);
 // oynatıcı = video üstte sabit, altında kaydırılabilir bilgi + bölüm listesi;
 // arama = yazarken anında, ada göre akıllı sıralı, kapak+açıklamalı zengin satırlar.
@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   SafeAreaView,
@@ -22,6 +23,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { StatusBar } from "expo-status-bar";
 import { WebView } from "react-native-webview";
+import * as ImagePicker from "expo-image-picker";
 import {
   getCatalog,
   getTitle,
@@ -33,6 +35,14 @@ import {
   toggleMyList,
   thumbUrl,
   iframeUrl,
+  getBuHafta,
+  getSergi,
+  getOySeti,
+  artOyVer,
+  getBenimEserim,
+  eserGonder,
+  artBildir,
+  kayitPushToken,
 } from "./api";
 import { useAuth, signIn, signUp, signOut } from "./auth";
 import { METINLER } from "./i18n";
@@ -50,6 +60,21 @@ const t = {
 };
 
 const AYAR_ANAHTAR = "latent_mobil_ayarlar";
+
+// Kullanıcı-girdisi URL güvenliği: yalnız http/https (javascript:/data: engellenir).
+// Şema yoksa https:// varsay. Güvenli değilse null.
+function guvenliUrl(ham) {
+  if (!ham) return null;
+  const s = String(ham).trim();
+  if (!s) return null;
+  const aday = /^https?:\/\//i.test(s) ? s : `https://${s}`;
+  try {
+    const u = new URL(aday);
+    return u.protocol === "http:" || u.protocol === "https:" ? u.href : null;
+  } catch {
+    return null;
+  }
+}
 
 export default function App() {
   // gorunum: {tip:"ana"} | {tip:"detay", id} | {tip:"oynat", video, baslik}
@@ -83,6 +108,11 @@ export default function App() {
     AsyncStorage.setItem(AYAR_ANAHTAR, JSON.stringify({ dil, ayarlar })).catch(() => {});
   }, [dil, ayarlar, ayarYuklendi]);
 
+  // Giriş sonrası cihaz push token'ını kaydet (EAS/cihaz yoksa sessiz geçer)
+  useEffect(() => {
+    if (user) kayitPushToken(user.id);
+  }, [user?.id]);
+
   const oynat = (video, baslik) => setGorunum({ tip: "oynat", video, baslik });
 
   return (
@@ -94,8 +124,17 @@ export default function App() {
           user={user}
           girisAc={() => setGirisAcik(true)}
           ayarlarAc={() => setAyarlarAcik(true)}
+          tabloAc={() => setGorunum({ tip: "tablo" })}
           oynat={oynat}
           ac={(id) => setGorunum({ tip: "detay", id })}
+        />
+      )}
+      {gorunum.tip === "tablo" && (
+        <Tablo
+          d={d}
+          user={user}
+          girisAc={() => setGirisAcik(true)}
+          geri={() => setGorunum({ tip: "ana" })}
         />
       )}
       {gorunum.tip === "detay" && (
@@ -137,7 +176,10 @@ export default function App() {
 // ————— Ayarlar modalı: dil + alt yazı tercihi —————
 function AyarlarModal({ d, dil, setDil, ayarlar, setAyarlar, kapat }) {
   const diller = Object.keys(METINLER);
-  const DIL_ADI = { en: "English", tr: "Türkçe", es: "Español", de: "Deutsch", fr: "Français" };
+  const DIL_ADI = {
+    en: "English", tr: "Türkçe", es: "Español", de: "Deutsch", fr: "Français",
+    ru: "Русский", ar: "العربية", zh: "中文",
+  };
 
   const SecimSatiri = ({ etiket, secili, sec }) => (
     <TouchableOpacity style={s.secimSatiri} onPress={sec} activeOpacity={0.8}>
@@ -289,7 +331,7 @@ function AuthModal({ d, kapat }) {
 }
 
 // ————— Ana: hero + açıklamalı dikey akış + akıllı arama —————
-function Ana({ d, user, girisAc, ayarlarAc, oynat, ac }) {
+function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac }) {
   const [katalog, setKatalog] = useState(null);
   const [hata, setHata] = useState(null);
   const [arama, setArama] = useState("");
@@ -412,8 +454,11 @@ function Ana({ d, user, girisAc, ayarlarAc, oynat, ac }) {
     >
       {/* Marka + dil anahtarı + giriş/çıkış */}
       <View style={s.ustSatir}>
-        <Text style={s.marka}>LATENT</Text>
+        <Text style={s.marka}>VAELO</Text>
         <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+          <TouchableOpacity style={s.dilDugme} onPress={tabloAc}>
+            <Text style={s.dilYazi}>{d.tablo.etiket}</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={s.dilDugme} onPress={ayarlarAc}>
             <Text style={[s.dilYazi, { fontSize: 15 }]}>⚙</Text>
           </TouchableOpacity>
@@ -794,6 +839,287 @@ function Durum({ d, mesaj, yukleniyor, geri }) {
   );
 }
 
+// ————— Tablo: haftalık AI görsel yarışması (gönderim / anonim eleme / sergi) —————
+function Tablo({ d, user, girisAc, geri }) {
+  const [hafta, setHafta] = useState(undefined); // undefined: yükleniyor, null: yok
+  const [hata, setHata] = useState(null);
+
+  const yukle = () => {
+    getBuHafta()
+      .then(setHafta)
+      .catch((e) => setHata(e.message));
+  };
+  useEffect(yukle, []);
+
+  return (
+    <ScrollView style={s.kap} contentContainerStyle={{ paddingBottom: 48 }}>
+      <View style={s.ustSatir}>
+        <Text style={s.marka}>{d.tablo.baslik}</Text>
+        <TouchableOpacity style={s.dilDugme} onPress={geri}>
+          <Text style={s.dilYazi}>{d.geri}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {hata ? (
+        <Durum d={d} mesaj={d.sunucuYok(hata)} />
+      ) : hafta === undefined ? (
+        <Durum d={d} yukleniyor />
+      ) : !hafta ? (
+        <Durum d={d} mesaj={d.tablo.yok} />
+      ) : hafta.durum === "gonderim" ? (
+        <ArtGonderim d={d} hafta={hafta} user={user} girisAc={girisAc} />
+      ) : hafta.durum === "eleme" ? (
+        <ArtEleme d={d} hafta={hafta} user={user} girisAc={girisAc} />
+      ) : (
+        <ArtSergi d={d} hafta={hafta} user={user} girisAc={girisAc} />
+      )}
+    </ScrollView>
+  );
+}
+
+// Gönderim: haftada 1 eser (görsel + açıklama + sosyal link)
+function ArtGonderim({ d, hafta, user, girisAc }) {
+  const [benim, setBenim] = useState(undefined);
+  const [varlik, setVarlik] = useState(null);
+  const [aciklama, setAciklama] = useState("");
+  const [sosyal, setSosyal] = useState("");
+  const [durum, setDurum] = useState(null); // null | "gonderiliyor" | "oldu" | "hata"
+
+  useEffect(() => {
+    if (!user) return setBenim(null);
+    getBenimEserim(hafta.id).then(setBenim).catch(() => setBenim(null));
+  }, [user?.id, hafta.id]);
+
+  async function gorselSec() {
+    const izin = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!izin.granted) return;
+    const sonuc = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.9,
+    });
+    if (!sonuc.canceled) setVarlik(sonuc.assets[0]);
+  }
+
+  async function gonder() {
+    if (!varlik) return;
+    setDurum("gonderiliyor");
+    try {
+      const guvenli = guvenliUrl(sosyal);
+      const linkler = guvenli ? [{ tur: "link", url: guvenli }] : [];
+      await eserGonder(hafta.id, user.id, varlik, aciklama, linkler);
+      setDurum("oldu");
+      getBenimEserim(hafta.id).then(setBenim).catch(() => {});
+    } catch {
+      setDurum("hata");
+    }
+  }
+
+  return (
+    <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+      <Text style={s.rafBaslik}>{d.tablo.gonderimBaslik}</Text>
+      <Text style={[s.dim, { marginBottom: 14 }]}>{d.tablo.gonderimAlt}</Text>
+
+      {!user ? (
+        <TouchableOpacity style={s.izleDugme} onPress={girisAc}>
+          <Text style={s.izleYazi}>{d.tablo.girisGerek}</Text>
+        </TouchableOpacity>
+      ) : benim ? (
+        <View>
+          <Image source={{ uri: benim.url }} style={s.artGorsel} resizeMode="contain" />
+          <Text style={[s.dim, { marginTop: 10, color: t.accent }]}>{d.tablo.zatenGonderdin}</Text>
+        </View>
+      ) : durum === "oldu" ? (
+        <Text style={{ color: t.accent, fontSize: 15, fontWeight: "600" }}>
+          {d.tablo.gonderildi}
+        </Text>
+      ) : (
+        <View>
+          <TouchableOpacity style={s.artSecKutu} onPress={gorselSec} activeOpacity={0.85}>
+            {varlik ? (
+              <Image source={{ uri: varlik.uri }} style={s.artGorsel} resizeMode="contain" />
+            ) : (
+              <Text style={s.dim}>＋ {d.tablo.eserSec}</Text>
+            )}
+          </TouchableOpacity>
+          <TextInput
+            style={s.modalAlan}
+            placeholder={d.tablo.aciklamaYer}
+            placeholderTextColor={t.dim}
+            value={aciklama}
+            onChangeText={setAciklama}
+            multiline
+          />
+          <TextInput
+            style={s.modalAlan}
+            placeholder={d.tablo.sosyalYer}
+            placeholderTextColor={t.dim}
+            value={sosyal}
+            onChangeText={setSosyal}
+            autoCapitalize="none"
+          />
+          {durum === "hata" && (
+            <Text style={{ color: t.danger, marginBottom: 10 }}>{d.tablo.hata}</Text>
+          )}
+          <TouchableOpacity
+            style={[
+              s.izleDugme,
+              { alignSelf: "stretch", alignItems: "center", opacity: !varlik || durum === "gonderiliyor" ? 0.5 : 1 },
+            ]}
+            disabled={!varlik || durum === "gonderiliyor"}
+            onPress={gonder}
+          >
+            <Text style={s.izleYazi}>
+              {durum === "gonderiliyor" ? d.tablo.gonderiliyor : d.tablo.gonder}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+}
+
+// İzleyici moderasyonu: eseri bildir (giriş gerekli)
+function ArtBildirDugme({ d, user, pieceId, girisAc }) {
+  const [ok, setOk] = useState(false);
+  async function bildir() {
+    if (!user) return girisAc();
+    setOk(true); // iyimser
+    await artBildir(pieceId, user.id);
+  }
+  return (
+    <TouchableOpacity style={s.artBildirDugme} onPress={bildir} disabled={ok} activeOpacity={0.7}>
+      <Text style={{ color: t.dim, fontSize: 12 }}>{ok ? d.tablo.bildirildi : d.tablo.bildir}</Text>
+    </TouchableOpacity>
+  );
+}
+
+// Anonim eleme: sahip GİZLİ; kullanıcı beğendiği eserlere oy verir
+function ArtEleme({ d, hafta, user, girisAc }) {
+  const [set, setSet] = useState(null);
+  const [oyluIds, setOyluIds] = useState([]);
+
+  useEffect(() => {
+    if (!user) return;
+    getOySeti(hafta.id).then(setSet).catch(() => setSet([]));
+  }, [user?.id, hafta.id, hafta.tur]);
+
+  async function oyVer(pieceId) {
+    setOyluIds((e) => [...e, pieceId]);
+    await artOyVer(pieceId, user.id, hafta.tur);
+  }
+
+  if (!user) {
+    return (
+      <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+        <Text style={s.rafBaslik}>{d.tablo.elemeBaslik}</Text>
+        <TouchableOpacity style={s.izleDugme} onPress={girisAc}>
+          <Text style={s.izleYazi}>{d.tablo.girisGerek}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+      <Text style={s.rafBaslik}>{d.tablo.elemeBaslik}</Text>
+      <Text style={[s.dim, { marginBottom: 14 }]}>{d.tablo.elemeAlt}</Text>
+      {set === null ? (
+        <Durum d={d} yukleniyor />
+      ) : set.length === 0 ? (
+        <Text style={s.dim}>{d.tablo.setBitti}</Text>
+      ) : (
+        set.map((e) => {
+          const oyladi = oyluIds.includes(e.id);
+          return (
+            <View key={e.id} style={{ marginBottom: 20 }}>
+              <Image source={{ uri: e.url }} style={s.artGorsel} resizeMode="contain" />
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                <TouchableOpacity
+                  style={[s.artOyDugme, oyladi && { backgroundColor: t.accent, borderColor: t.accent }]}
+                  disabled={oyladi}
+                  onPress={() => oyVer(e.id)}
+                >
+                  <Text style={{ color: oyladi ? "#0A0A0B" : t.text, fontWeight: "700", fontSize: 14 }}>
+                    {oyladi ? d.tablo.oylandi : d.tablo.oyla}
+                  </Text>
+                </TouchableOpacity>
+                <ArtBildirDugme d={d} user={user} pieceId={e.id} girisAc={girisAc} />
+              </View>
+            </View>
+          );
+        })
+      )}
+    </View>
+  );
+}
+
+// Sergi: son 50, oy sıralı, SAHİPLİ + sosyal linkler; hâlâ puanlanabilir (tur 999)
+function ArtSergi({ d, hafta, user, girisAc }) {
+  const [liste, setListe] = useState(null);
+  const [oyluIds, setOyluIds] = useState([]);
+
+  useEffect(() => {
+    getSergi(hafta.id).then(setListe).catch(() => setListe([]));
+  }, [hafta.id]);
+
+  async function puanla(pieceId) {
+    if (!user) return girisAc();
+    setOyluIds((e) => [...e, pieceId]);
+    await artOyVer(pieceId, user.id, 999);
+  }
+
+  return (
+    <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+      <Text style={s.rafBaslik}>{d.tablo.sergiBaslik}</Text>
+      <Text style={[s.dim, { marginBottom: 14 }]}>{d.tablo.sergiAlt}</Text>
+      {liste === null ? (
+        <Durum d={d} yukleniyor />
+      ) : liste.length === 0 ? (
+        <Text style={s.dim}>{d.tablo.yok}</Text>
+      ) : (
+        liste.map((e, i) => {
+          const oyladi = oyluIds.includes(e.id);
+          return (
+            <View key={e.id} style={{ marginBottom: 24 }}>
+              <Text style={[s.dim, { fontWeight: "800", color: t.accent }]}>#{i + 1}</Text>
+              <Image source={{ uri: e.url }} style={s.artGorsel} resizeMode="contain" />
+              <Text style={{ color: t.text, fontWeight: "700", fontSize: 15, marginTop: 8 }}>
+                {e.sahip_ad || d.tablo.anonim}
+              </Text>
+              {e.aciklama ? <Text style={[s.dim, { marginTop: 2 }]}>{e.aciklama}</Text> : null}
+              {(e.sosyal || []).map((l, j) => {
+                const gu = guvenliUrl(l.url); // güvenli değilse dokunulamaz düz metin
+                return gu ? (
+                  <TouchableOpacity key={j} onPress={() => Linking.openURL(gu)}>
+                    <Text style={{ color: t.accent, fontSize: 13, marginTop: 4 }}>↗ {gu}</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <Text key={j} style={{ color: t.dim, fontSize: 13, marginTop: 4 }}>
+                    ↗ {String(l.url)}
+                  </Text>
+                );
+              })}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 8 }}>
+                <Text style={s.dim}>{d.tablo.oySay(Number(e.oy))}</Text>
+                <TouchableOpacity
+                  style={[s.artOyDugme, { marginTop: 0 }, oyladi && { backgroundColor: t.accent, borderColor: t.accent }]}
+                  disabled={oyladi}
+                  onPress={() => puanla(e.id)}
+                >
+                  <Text style={{ color: oyladi ? "#0A0A0B" : t.text, fontWeight: "700", fontSize: 13 }}>
+                    {oyladi ? d.tablo.oylandi : d.tablo.oyla}
+                  </Text>
+                </TouchableOpacity>
+                <ArtBildirDugme d={d} user={user} pieceId={e.id} girisAc={girisAc} />
+              </View>
+            </View>
+          );
+        })
+      )}
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
   kap: { flex: 1, backgroundColor: t.bg },
   ustSatir: {
@@ -951,4 +1277,40 @@ const s = StyleSheet.create({
   },
   bolumAd: { color: t.text, fontSize: 14, fontWeight: "600", flex: 1 },
   oynaticiAd: { color: t.text, fontSize: 18, fontWeight: "700" },
+  artGorsel: {
+    width: "100%",
+    height: 300,
+    borderRadius: 10,
+    backgroundColor: t.surface2,
+  },
+  artSecKutu: {
+    width: "100%",
+    minHeight: 180,
+    borderRadius: 10,
+    borderColor: t.line,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    backgroundColor: t.surface2,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+    padding: 12,
+  },
+  artOyDugme: {
+    alignSelf: "flex-start",
+    borderColor: t.line,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    marginTop: 10,
+  },
+  artBildirDugme: {
+    borderColor: t.line,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginTop: 10,
+  },
 });

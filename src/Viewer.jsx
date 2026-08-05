@@ -588,7 +588,7 @@ function Detay({ id, user, oynat, geri }) {
   // Sekme başlığını içerikle eşle (paylaşılan sekmelerde ad görünsün)
   useEffect(() => {
     if (!baslik) return;
-    document.title = `${baslik.name} — Latent`;
+    document.title = `${baslik.name} — Vaelo`;
     return () => {
       document.title = s.belgeBasligi;
     };
@@ -857,6 +857,8 @@ function Oynatici({ video, baslik, baslangic = 0, user, oynat, geri }) {
 
   function sponsorTikla() {
     if (!sponsor?.url) return;
+    // Yalnız http/https aç (javascript:/data: gibi şemaları engelle)
+    if (!/^https?:\/\//i.test(String(sponsor.url).trim())) return;
     logAd(sponsor.id, video.id, user?.id ?? null, "click");
     window.open(sponsor.url, "_blank", "noopener");
   }

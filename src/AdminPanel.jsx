@@ -1,12 +1,12 @@
-// Moderasyon paneli (yalnızca admin): inceleme kuyruğu, sponsor yönetimi, yarışma
-// yönetimi ve denetim kaydı. Erişim, sql/02_admin_policies.sql'deki admin RLS ilkeleriyle.
+// Moderasyon paneli. İnceleme kuyruğu MODERATÖR + admin'e açık; sponsor/yarışma/rol
+// yönetimi ve denetim kaydı YALNIZ admin (owner). Erişim RLS'te: is_moderator / is_admin.
 import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
-import { iframeUrl, katalogTazele } from "./catalog";
+import { iframeUrl, katalogTazele, getCreatorBasvurular, creatorOnayla, creatorReddet } from "./catalog";
 import { useLang } from "./i18n";
 import { t } from "./theme";
 
-export default function AdminPanel() {
+export default function AdminPanel({ admin }) {
   const { s } = useLang();
   const [kuyruk, setKuyruk] = useState(null);
   const [hata, setHata] = useState(null);
@@ -197,9 +197,190 @@ export default function AdminPanel() {
         ))}
       </div>
 
-      <Sponsorlar />
-      <Yarismalar />
-      <DenetimKaydi />
+      {/* Gelir/yarışma/rol/denetim yalnız admin (owner); moderatör yalnız inceleme kuyruğu */}
+      {admin && (
+        <>
+          <Basvurular />
+          <Roller />
+          <Sponsorlar />
+          <Yarismalar />
+          <DenetimKaydi />
+        </>
+      )}
+    </div>
+  );
+}
+
+// ————— Üretici başvuruları (yalnız admin): onayla → role=creator —————
+function Basvurular() {
+  const { s } = useLang();
+  const [liste, setListe] = useState([]);
+  const [hata, setHata] = useState(null);
+
+  async function yenile() {
+    try {
+      setListe(await getCreatorBasvurular());
+    } catch (e) {
+      setHata(e.message);
+    }
+  }
+  useEffect(() => {
+    yenile();
+  }, []);
+
+  async function karar(userId, onay) {
+    const { error } = onay ? await creatorOnayla(userId) : await creatorReddet(userId);
+    if (error) setHata(error.message);
+    else yenile();
+  }
+
+  const dgm = {
+    border: `1px solid ${t.line}`,
+    borderRadius: 6,
+    padding: "5px 12px",
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer",
+    background: "none",
+  };
+
+  return (
+    <div style={{ marginTop: 48 }}>
+      <div style={{ fontFamily: t.display, fontWeight: 700, fontSize: 18, marginBottom: 6 }}>
+        {s.panel.basvuruBaslik}
+      </div>
+      <div style={{ color: t.dim, fontSize: 13, marginBottom: 16 }}>{s.panel.basvuruAciklama}</div>
+      {hata && <div style={{ color: t.danger, fontSize: 13, marginBottom: 12 }}>{hata}</div>}
+      {liste.length === 0 && <div style={{ color: t.dim, fontSize: 13 }}>{s.panel.basvuruYok}</div>}
+      <div style={{ display: "grid", gap: 8 }}>
+        {liste.map((b) => (
+          <div
+            key={b.user_id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              padding: "10px 14px",
+              background: t.surface,
+              border: `1px solid ${t.line}`,
+              borderRadius: 8,
+              fontSize: 13,
+            }}
+          >
+            <span style={{ fontWeight: 600 }}>{b.ad || s.panel.basvuruAdsiz}</span>
+            <span style={{ color: t.dim, fontSize: 11 }}>{b.user_id.slice(0, 8)}</span>
+            {b.mesaj ? (
+              <span style={{ color: t.dim, flex: 1, minWidth: 0 }}>{b.mesaj}</span>
+            ) : (
+              <span style={{ flex: 1 }} />
+            )}
+            {b.durum === "beklemede" ? (
+              <>
+                <button
+                  onClick={() => karar(b.user_id, true)}
+                  style={{ ...dgm, background: t.accent, color: "#0A0A0B", border: "none" }}
+                >
+                  {s.panel.basvuruOnayla}
+                </button>
+                <button onClick={() => karar(b.user_id, false)} style={{ ...dgm, color: t.danger }}>
+                  {s.panel.basvuruReddet}
+                </button>
+              </>
+            ) : (
+              <span style={{ color: b.durum === "onaylandi" ? t.accent : t.dim, fontSize: 12 }}>
+                {s.panel.basvuruDurum[b.durum]}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ————— Rol yönetimi (yalnız admin): kullanıcıları moderator/creator/viewer yap —————
+// 'admin' atama/kaldırma bilerek YOK — o yalnız SQL Editor (service role) ile yapılır.
+function Roller() {
+  const { s } = useLang();
+  const [liste, setListe] = useState([]);
+  const [hata, setHata] = useState(null);
+
+  async function yenile() {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, display_name, role")
+      .order("role", { ascending: true });
+    if (error) setHata(error.message);
+    else setListe(data ?? []);
+  }
+  useEffect(() => {
+    yenile();
+  }, []);
+
+  async function rolDegistir(kullanici, yeni) {
+    if (kullanici.role === yeni) return;
+    const { error } = await supabase.from("profiles").update({ role: yeni }).eq("id", kullanici.id);
+    if (error) setHata(error.message);
+    else yenile();
+  }
+
+  const secilebilir = ["viewer", "creator", "moderator"];
+
+  return (
+    <div style={{ marginTop: 48 }}>
+      <div style={{ fontFamily: t.display, fontWeight: 700, fontSize: 18, marginBottom: 6 }}>
+        {s.panel.rolBaslik}
+      </div>
+      <div style={{ color: t.dim, fontSize: 13, marginBottom: 16 }}>{s.panel.rolAciklama}</div>
+
+      {hata && <div style={{ color: t.danger, fontSize: 13, marginBottom: 12 }}>{hata}</div>}
+
+      <div style={{ display: "grid", gap: 8 }}>
+        {liste.map((k) => (
+          <div
+            key={k.id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              padding: "10px 14px",
+              background: t.surface,
+              border: `1px solid ${t.line}`,
+              borderRadius: 8,
+              fontSize: 13,
+            }}
+          >
+            <span style={{ fontWeight: 600 }}>{k.display_name || s.panel.rolAdsiz}</span>
+            <span style={{ color: t.dim, fontSize: 11 }}>{k.id.slice(0, 8)}</span>
+            <span style={{ flex: 1 }} />
+            {k.role === "admin" ? (
+              <span style={{ color: t.accent, fontSize: 12, fontWeight: 600 }}>
+                {s.panel.rolAdi.admin}
+              </span>
+            ) : (
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {secilebilir.map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => rolDegistir(k, r)}
+                    style={{
+                      background: k.role === r ? t.accent : "none",
+                      color: k.role === r ? "#0A0A0B" : t.dim,
+                      border: `1px solid ${k.role === r ? t.accent : t.line}`,
+                      borderRadius: 6,
+                      padding: "4px 10px",
+                      fontSize: 12,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {s.panel.rolAdi[r]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

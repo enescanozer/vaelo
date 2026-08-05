@@ -1,0 +1,162 @@
+# Codemagic CI/CD — Vaelo mobil (Expo SDK 52, managed workflow)
+#   Uygulama repo kökünün `mobil/` alt klasöründedir; her betik oraya cd eder.
+#   Managed workflow olduğu için native klasör yok → her build `expo prebuild` ile üretir.
+#
+# İki test çıktısı (ikisi de ücretsiz katmana sığar, ikisi de imza/Apple hesabı GEREKTİRMEZ):
+#   1) android-test  → Linux runner → kurulabilir debug APK
+#   2) ios-simulator → macOS M2 runner → simülatör .app (Appetize.io'da tarayıcıda çalışır)
+#
+# Mağaza/gerçek cihaz için imzalı derlemeler en altta (Apple Developer / Play Console hesabı gerekir).
+
+workflows:
+  # ————————————————————————————————————————————————————————————————
+  # 1) ANDROID — Linux runner, imzasız debug APK (hemen test edilebilir)
+  # ————————————————————————————————————————————————————————————————
+  android-test:
+    name: Vaelo Android (test APK)
+    instance_type: linux_x2
+    max_build_duration: 60
+    environment:
+      node: 20.11.0
+    scripts:
+      - name: Bağımlılıkları kur
+        script: |
+          cd mobil
+          npm ci
+      - name: Expo prebuild (android/ üret)
+        script: |
+          cd mobil
+          npx expo prebuild --platform android --clean --no-install
+      - name: Debug APK derle (imza gerektirmez)
+        script: |
+          cd mobil/android
+          chmod +x ./gradlew
+          ./gradlew assembleDebug
+    artifacts:
+      - mobil/android/app/build/outputs/**/*.apk
+    publishing:
+      email:
+        recipients:
+          - canenesqy@gmail.com
+        notify:
+          success: true
+          failure: true
+
+  # ————————————————————————————————————————————————————————————————
+  # 2) iOS — macOS M2 runner, imzasız SİMÜLATÖR build'i (Apple hesabı GEREKMEZ)
+  #    Çıktı .app → zip → Appetize.io'ya yükle → tarayıcıda iPhone'da çalıştır.
+  # ————————————————————————————————————————————————————————————————
+  ios-simulator:
+    name: Vaelo iOS (simülatör — Appetize)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      node: 20.11.0
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Bağımlılıkları kur
+        script: |
+          cd mobil
+          npm ci
+      - name: Expo prebuild (ios/ üret)
+        script: |
+          cd mobil
+          npx expo prebuild --platform ios --clean --no-install
+      - name: CocoaPods kur
+        script: |
+          cd mobil/ios
+          pod install
+      - name: Simülatör için derle (imzasız)
+        script: |
+          cd mobil/ios
+          SCHEME=$(ls -d *.xcworkspace | sed 's/\.xcworkspace$//')
+          echo "Şema: $SCHEME"
+          xcodebuild \
+            -workspace "$SCHEME.xcworkspace" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO | xcpretty || true
+      - name: .app'i zip'le (Appetize için)
+        script: |
+          cd mobil/ios/build/Build/Products/Release-iphonesimulator
+          APP=$(ls -d *.app | head -1)
+          zip -r vaelo-sim.zip "$APP"
+    artifacts:
+      - mobil/ios/build/Build/Products/Release-iphonesimulator/*.zip
+    publishing:
+      email:
+        recipients:
+          - canenesqy@gmail.com
+        notify:
+          success: true
+          failure: true
+
+  # ————————————————————————————————————————————————————————————————
+  # 3) (İLERİDE) iOS — imzalı .ipa (TestFlight / App Store)
+  #    GEREKLİ: Apple Developer hesabı ($99/yıl). Codemagic'te "Team integrations →
+  #    App Store Connect" ile API anahtarını bağla; aşağıdaki grubu doldur.
+  # ————————————————————————————————————————————————————————————————
+  # ios-release:
+  #   name: Vaelo iOS (imzalı .ipa)
+  #   instance_type: mac_mini_m2
+  #   max_build_duration: 90
+  #   integrations:
+  #     app_store_connect: Vaelo ASC Key   # Codemagic UI'da tanımlanan anahtar adı
+  #   environment:
+  #     node: 20.11.0
+  #     xcode: latest
+  #     cocoapods: default
+  #     ios_signing:
+  #       distribution_type: app_store
+  #       bundle_identifier: app.vaelo.mobil
+  #   scripts:
+  #     - name: Bağımlılıkları kur
+  #       script: cd mobil && npm ci
+  #     - name: Expo prebuild
+  #       script: cd mobil && npx expo prebuild --platform ios --clean --no-install
+  #     - name: Pods
+  #       script: cd mobil/ios && pod install
+  #     - name: İmza profillerini çek
+  #       script: cd mobil/ios && xcode-project use-profiles
+  #     - name: .ipa derle
+  #       script: |
+  #         cd mobil/ios
+  #         SCHEME=$(ls -d *.xcworkspace | sed 's/\.xcworkspace$//')
+  #         xcode-project build-ipa --workspace "$SCHEME.xcworkspace" --scheme "$SCHEME"
+  #   artifacts:
+  #     - mobil/ios/build/ios/ipa/*.ipa
+  #   publishing:
+  #     app_store_connect:
+  #       auth: integration
+  #       submit_to_testflight: true
+
+  # ————————————————————————————————————————————————————————————————
+  # 4) (İLERİDE) ANDROID — imzalı release APK/AAB (Play Console)
+  #    GEREKLİ: keystore. Codemagic UI → "Code signing identities → Android keystores"
+  #    ile yükle; reference name'i aşağıya yaz (android_signing).
+  # ————————————————————————————————————————————————————————————————
+  # android-release:
+  #   name: Vaelo Android (imzalı AAB)
+  #   instance_type: linux_x2
+  #   max_build_duration: 60
+  #   environment:
+  #     node: 20.11.0
+  #     android_signing:
+  #       - vaelo_keystore        # Codemagic UI'daki keystore reference name
+  #     vars:
+  #       PACKAGE_NAME: "app.vaelo.mobil"
+  #   scripts:
+  #     - name: Bağımlılıkları kur
+  #       script: cd mobil && npm ci
+  #     - name: Expo prebuild
+  #       script: cd mobil && npx expo prebuild --platform android --clean --no-install
+  #     - name: AAB derle
+  #       script: |
+  #         cd mobil/android
+  #         chmod +x ./gradlew
+  #         ./gradlew bundleRelease
+  #   artifacts:
+  #     - mobil/android/app/build/outputs/**/*.aab

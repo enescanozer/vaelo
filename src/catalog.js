@@ -290,11 +290,14 @@ export async function getWatchedGenres(userId) {
 
 // ————— Yarışma —————
 export async function getActiveContest() {
+  // Aktif yarışma VEYA bitişten sonra 14 gün (kazanan/ilk 10 gösterimi). Aktif önce gelir.
+  const onDortGun = new Date(Date.now() - 14 * 86400000).toISOString();
   const { data } = await supabase
     .from("contests")
     .select("*")
-    .eq("active", true)
-    .order("created_at", { ascending: false })
+    .or(`active.eq.true,ends_at.gte.${onDortGun}`)
+    .order("active", { ascending: false })
+    .order("ends_at", { ascending: false, nullsFirst: false })
     .limit(1)
     .maybeSingle();
   return data ?? null;
@@ -459,4 +462,41 @@ export function useHomeData() {
   }, []);
 
   return durum;
+}
+
+// ————— Üretici (creator) başvurusu —————
+// Kullanıcının kendi başvuru durumu: { durum, mesaj } | null
+export async function getCreatorBasvurum(userId) {
+  const { data } = await supabase
+    .from("creator_basvurulari")
+    .select("durum, mesaj")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return data ?? null;
+}
+// Başvur (yeni) ya da reddedilmişse yeniden dene
+export async function creatorBasvur(userId, mesaj) {
+  return supabase
+    .from("creator_basvurulari")
+    .upsert(
+      { user_id: userId, mesaj: mesaj || null, durum: "beklemede", karar_at: null },
+      { onConflict: "user_id" }
+    );
+}
+// Yarışma sekmesi görünsün mü? (aktif yarışma VEYA bitişten sonra 14 gün)
+export async function getYarismaGorunur() {
+  const { data } = await supabase.rpc("yarisma_penceresi");
+  return data === true;
+}
+
+// ————— Admin: üretici başvuruları —————
+export async function getCreatorBasvurular() {
+  const { data } = await supabase.rpc("creator_basvuru_listesi");
+  return data ?? [];
+}
+export async function creatorOnayla(userId) {
+  return supabase.rpc("creator_onayla", { p_user: userId });
+}
+export async function creatorReddet(userId) {
+  return supabase.rpc("creator_reddet", { p_user: userId });
 }

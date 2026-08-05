@@ -132,7 +132,10 @@ export default function Studio() {
 }
 
 // Dil kodu → yerel ad (alt yazı seçicisinde okunur görünsün)
-const DIL_ADI = { en: "English", tr: "Türkçe", es: "Español", de: "Deutsch", fr: "Français" };
+const DIL_ADI = {
+  en: "English", ru: "Русский", zh: "中文", ar: "العربية",
+  tr: "Türkçe", es: "Español", de: "Deutsch", fr: "Français",
+};
 
 // Tek bölüm satırı: bilgi + izlenme + durum, altında alt yazı rozetleri ve ekleme.
 function StudioSatiri({ sat, s }) {
@@ -142,6 +145,10 @@ function StudioSatiri({ sat, s }) {
   const [dosya, setDosya] = useState(null); // { ad, metin }
   const [asama, setAsama] = useState("hazir"); // hazir | yukleniyor | basarili
   const [hata, setHata] = useState(null);
+  // AI ile çok-dilli üretim
+  const [aiAcik, setAiAcik] = useState(false);
+  const [kaynakDil, setKaynakDil] = useState("en");
+  const [aiAsama, setAiAsama] = useState("hazir"); // hazir | calisiyor | uretiliyor | tamam | hata
 
   // Alt yazı yalnızca CF'de hazır (cf_uid var) bölümlere eklenebilir
   const ccEklenebilir = !!sat.cf_uid;
@@ -184,6 +191,41 @@ function StudioSatiri({ sat, s }) {
       setFormAcik(false);
       setAsama("hazir");
     }, 1500);
+  }
+
+  // AI ile üret: CF transkripsiyonu (senkron) + Claude çevirisi (zaman damgaları korunur).
+  // İlk çağrı transkripsiyonu başlatır ("uretiliyor"); hazır olunca ikinci çağrı çevirip yükler.
+  async function aiUret() {
+    setHata(null);
+    setAiAsama("calisiyor");
+    const { data, error } = await supabase.functions.invoke("generate-captions", {
+      body: { video_id: sat.bolum_id, kaynak_dil: kaynakDil },
+    });
+    if (error || data?.hata) {
+      let mesaj = data?.hata || error?.message || "?";
+      if (error?.context) {
+        try {
+          const govde = await error.context.json();
+          if (govde?.hata) mesaj = govde.hata;
+        } catch {
+          /* gövde JSON değil */
+        }
+      }
+      setHata(mesaj);
+      setAiAsama("hata");
+      return;
+    }
+    if (data?.durum === "uretiliyor") {
+      setAiAsama("uretiliyor"); // transkript sürüyor; kullanıcı birazdan tekrar dener
+      return;
+    }
+    // durum === "tamam"
+    if (data?.captions) setCaptions(data.captions);
+    setAiAsama("tamam");
+    setTimeout(() => {
+      setAiAcik(false);
+      setAiAsama("hazir");
+    }, 1800);
   }
 
   const alanStil = {
@@ -251,23 +293,78 @@ function StudioSatiri({ sat, s }) {
         >
           {s.studyo.durum[sat.durum] ?? sat.durum}
         </span>
-        {ccEklenebilir && !formAcik && (
-          <button
-            onClick={() => setFormAcik(true)}
-            style={{
-              background: "none",
-              border: `1px solid ${t.line}`,
-              borderRadius: 6,
-              color: t.dim,
-              padding: "5px 10px",
-              fontSize: 12,
-              whiteSpace: "nowrap",
-            }}
-          >
-            {s.studyo.ccEkle}
-          </button>
+        {ccEklenebilir && !formAcik && !aiAcik && (
+          <>
+            <button
+              onClick={() => setAiAcik(true)}
+              style={{
+                background: "none",
+                border: `1px solid ${t.accent}`,
+                borderRadius: 6,
+                color: t.accent,
+                padding: "5px 10px",
+                fontSize: 12,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {s.studyo.ccAiUret}
+            </button>
+            <button
+              onClick={() => setFormAcik(true)}
+              style={{
+                background: "none",
+                border: `1px solid ${t.line}`,
+                borderRadius: 6,
+                color: t.dim,
+                padding: "5px 10px",
+                fontSize: 12,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {s.studyo.ccEkle}
+            </button>
+          </>
         )}
       </div>
+
+      {/* AI ile çok-dilli üretim: konuşulan dili seç → CF transkript + Claude çeviri */}
+      {aiAcik && (
+        <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap", alignItems: "center" }}>
+          <span style={{ color: t.dim, fontSize: 13 }}>{s.studyo.ccKaynakDil}:</span>
+          <select style={alanStil} value={kaynakDil} onChange={(e) => setKaynakDil(e.target.value)}>
+            {Object.keys(DIL_ADI).map((kod) => (
+              <option key={kod} value={kod}>
+                {DIL_ADI[kod]}
+              </option>
+            ))}
+          </select>
+          {aiAsama === "tamam" ? (
+            <span style={{ color: t.accent, fontSize: 13 }}>{s.studyo.ccAiTamam}</span>
+          ) : (
+            <button
+              onClick={aiUret}
+              disabled={aiAsama === "calisiyor"}
+              style={{
+                background: t.accent,
+                color: "#0A0A0B",
+                border: "none",
+                borderRadius: 6,
+                padding: "8px 14px",
+                fontSize: 13,
+                fontWeight: 700,
+                opacity: aiAsama === "calisiyor" ? 0.5 : 1,
+              }}
+            >
+              {aiAsama === "calisiyor" ? s.studyo.ccBekle : s.studyo.ccUret}
+            </button>
+          )}
+          {aiAsama === "uretiliyor" && (
+            <span style={{ color: t.dim, fontSize: 12, flexBasis: "100%" }}>
+              {s.studyo.ccUretiliyor}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Alt yazı yükleme formu */}
       {formAcik && (

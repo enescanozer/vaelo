@@ -1,0 +1,366 @@
+<title>Vaelo — Proje Dosyası</title>
+<style>
+  :root {
+    --bg: #0A0A0B; --surface: #121214; --surface2: #16161B; --line: #24242A;
+    --text: #ECEEE9; --dim: #8C8F88; --dimmer: #5D605A;
+    --accent: #CDFF4A; --accent-soft: rgba(205, 255, 74, 0.12);
+    --warm: #E2574C; --gold: #E7C34A;
+    --font-display: "Syne", "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+    --font-body: "Hanken Grotesk", -apple-system, "Segoe UI", system-ui, sans-serif;
+    --mx: min(92vw, 940px);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--font-body);
+    font-size: 16px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    background-image: radial-gradient(1200px 620px at 78% -12%, rgba(205,255,74,0.06), transparent 60%);
+  }
+  .wrap { width: var(--mx); margin: 0 auto; padding: 0 4px; }
+  section { padding: 62px 0; border-top: 1px solid var(--line); }
+  .eyebrow {
+    font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin: 0 0 18px;
+  }
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 800; text-wrap: balance; letter-spacing: -0.02em; }
+  h2 { font-size: clamp(26px, 4.4vw, 38px); line-height: 1.08; margin: 0 0 14px; }
+  h3 { font-size: 18px; letter-spacing: -0.01em; margin: 0 0 6px; }
+  p { margin: 0 0 14px; color: #D6D8D2; }
+  .lead { font-size: 18px; color: var(--dim); max-width: 62ch; }
+  a { color: var(--accent); }
+  strong { color: var(--text); }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* HERO */
+  .hero { padding: 84px 0 58px; border-top: none; }
+  .brand { font-family: var(--font-display); font-weight: 800; letter-spacing: 0.28em; font-size: 15px; color: var(--dim); }
+  .hero h1 { font-size: clamp(44px, 9vw, 92px); line-height: 0.94; margin: 22px 0 20px; }
+  .hero h1 .g { color: var(--accent); }
+  .hero .lead { font-size: clamp(17px, 2.4vw, 21px); color: #C7C9C3; max-width: 40ch; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--accent-soft); color: var(--accent);
+    border: 1px solid rgba(205,255,74,0.3); border-radius: 999px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 700; letter-spacing: 0.04em;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 0 rgba(205,255,74,0.6); animation: pulse 2.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(205,255,74,0.55);} 70%{box-shadow:0 0 0 8px rgba(205,255,74,0);} 100%{box-shadow:0 0 0 0 rgba(205,255,74,0);} }
+  @media (prefers-reduced-motion: reduce){ .dot{ animation:none; } }
+  .hero-meta { display: flex; flex-wrap: wrap; gap: 10px 26px; margin-top: 32px; color: var(--dim); font-size: 14px; }
+  .hero-meta b { color: var(--text); font-family: var(--font-display); }
+
+  /* grids & cards */
+  .grid { display: grid; gap: 14px; }
+  .g2 { grid-template-columns: repeat(2, 1fr); }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 720px){ .g2, .g3 { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px 20px;
+  }
+  .card .k { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); font-weight: 700; }
+  .card p { font-size: 14.5px; margin: 8px 0 0; color: var(--dim); }
+  .tag { color: var(--accent); font-weight: 700; }
+
+  /* loop steps */
+  .loop { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
+  .loop .step { flex: 1 1 150px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; position: relative; }
+  .loop .step .n { font-family: var(--font-display); font-weight: 800; color: var(--accent); font-size: 13px; }
+  .loop .step h3 { font-size: 15px; margin: 6px 0 2px; }
+  .loop .step p { font-size: 13px; color: var(--dim); margin: 0; }
+
+  /* feature columns */
+  .feat { display: grid; grid-template-columns: 200px 1fr; gap: 6px 22px; padding: 15px 0; border-bottom: 1px solid var(--line); }
+  .feat:last-child { border-bottom: none; }
+  .feat .h { font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--text); }
+  .feat .d { color: var(--dim); font-size: 14.5px; }
+  @media (max-width: 620px){ .feat { grid-template-columns: 1fr; gap: 3px; } }
+  .live { color: var(--accent); font-weight: 700; font-size: 12px; letter-spacing: 0.05em; }
+
+  /* timeline */
+  .tl { display: grid; gap: 0; }
+  .phase { display: grid; grid-template-columns: 44px 1fr; gap: 20px; padding: 0 0 30px; position: relative; }
+  .phase:not(:last-child) .rail::after { content: ""; position: absolute; left: 21px; top: 34px; bottom: -4px; width: 2px; background: linear-gradient(var(--line), transparent); }
+  .rail { position: relative; }
+  .badge { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; font-family: var(--font-display); font-weight: 800; font-size: 17px;
+    background: var(--surface2); border: 1px solid var(--line); color: var(--dim); }
+  .phase.done .badge { background: var(--accent); color: #0A0A0B; border-color: var(--accent); }
+  .phase.now .badge { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  .phase .status { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 700; }
+  .phase.done .status { color: var(--accent); }
+  .phase.now .status { color: var(--gold); }
+  .phase.next .status { color: var(--dim); }
+  .phase h3 { margin: 4px 0 6px; font-size: 20px; }
+  .phase p { color: var(--dim); font-size: 14.5px; margin: 0 0 6px; }
+  .cost-inline { display: inline-block; margin-top: 4px; font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: 3px 10px; }
+  .cost-inline b { color: var(--accent); font-family: var(--font-display); }
+
+  /* tables */
+  .tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14.5px; min-width: 520px; }
+  th, td { text-align: left; padding: 13px 16px; border-bottom: 1px solid var(--line); }
+  th { font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); font-weight: 700; background: var(--surface); }
+  tr:last-child td { border-bottom: none; }
+  td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
+  .muted { color: var(--dim); }
+  .accent-row td { background: var(--accent-soft); }
+  .accent-row td b { color: var(--accent); }
+
+  /* scenario cards */
+  .scn { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 22px; }
+  .scn.mid { border-color: rgba(205,255,74,0.35); }
+  .scn .tier { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); font-weight: 700; }
+  .scn .big { font-family: var(--font-display); font-weight: 800; font-size: 30px; letter-spacing: -0.02em; margin: 10px 0 2px; }
+  .scn .big .per { font-size: 14px; color: var(--dim); font-weight: 600; }
+  .scn ul { list-style: none; padding: 0; margin: 14px 0 0; }
+  .scn li { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; font-size: 13.5px; color: var(--dim); border-top: 1px dashed var(--line); }
+  .scn li b { color: var(--text); font-variant-numeric: tabular-nums; }
+  .scn .assume { margin-top: 14px; font-size: 12.5px; color: var(--dimmer); line-height: 1.45; }
+
+  .callout { background: linear-gradient(180deg, rgba(205,255,74,0.07), rgba(205,255,74,0.02)); border: 1px solid rgba(205,255,74,0.25); border-radius: 16px; padding: 24px; }
+  .callout h3 { color: var(--accent); }
+  .foot { padding: 40px 0 70px; color: var(--dimmer); font-size: 13px; text-align: center; border-top: 1px solid var(--line); }
+  .note { font-size: 12.5px; color: var(--dimmer); margin-top: 12px; }
+</style>
+
+<div class="wrap">
+
+  <!-- HERO -->
+  <header class="hero">
+    <div class="brand">V A E L O</div>
+    <h1>Yapay zekânın<br><span class="g">akış</span> platformu.</h1>
+    <p class="lead">Tamamen AI ile üretilmiş film, dizi ve sanat. İzleyiciye her zaman ücretsiz — reklam ve sponsorlukla finanse edilir, sanatçılar izlenmeyle kazanır.</p>
+    <div style="margin-top:26px"><span class="pill"><span class="dot"></span> ÇEKİRDEK PLATFORM CANLI</span></div>
+    <div class="hero-meta">
+      <span>Kimlik · <b>yalnızca AI içerik</b></span>
+      <span>Erişim · <b>global, 5 dil</b></span>
+      <span>İzleyici · <b>her zaman ücretsiz</b></span>
+      <span>Model · <b>reklam + sponsor</b></span>
+    </div>
+  </header>
+
+  <!-- VİZYON -->
+  <section>
+    <p class="eyebrow">Vizyon</p>
+    <h2>“AI içerikleri için Netflix.”</h2>
+    <p class="lead">Yapay zekâ üretimi görsel içerik patlıyor ama dağıtılacağı, keşfedileceği ve <em>gelir getireceği</em> bir yer yok. Vaelo bu boşluğu dolduruyor: net bir kimlik (yalnızca AI), ücretsiz izleme, sponsor finansmanı ve üreticiye izlenme başına kazanç.</p>
+    <div class="grid g3" style="margin-top:26px">
+      <div class="card"><div class="k">Diferansiyasyon</div><p><span class="tag">Yalnızca AI</span> içerik — net, viral, medyaya haber değeri olan bir konumlama. Geleneksel platformlarla yarışmaz, yeni bir kategori açar.</p></div>
+      <div class="card"><div class="k">Arz avantajı</div><p>İçerik AI ile üretildiği için <span class="tag">maliyeti düşük ve ölçeklenebilir</span>. Üreticiler izlenmeyle kazanınca arz kendi kendini besler.</p></div>
+      <div class="card"><div class="k">Talep motoru</div><p>Ücretsiz izleme + haftalık <span class="tag">yarışmalar</span> geniş kitle çeker; bildirimlerle geri getirir. Sponsorlar için değerli, ölçeklenen bir izleyici.</p></div>
+    </div>
+  </section>
+
+  <!-- NASIL ÇALIŞIR -->
+  <section>
+    <p class="eyebrow">Nasıl çalışır</p>
+    <h2>Tek yönlü, otomatik bir döngü</h2>
+    <p class="lead" style="margin-bottom:26px">İnce istemci, tek backend. Video istemciden doğrudan CDN'e gider; sunucudan geçmez — bu yüzden altyapı ucuz ve ölçeklenebilir.</p>
+    <div class="loop">
+      <div class="step"><div class="n">01</div><h3>Üretici yükler</h3><p>Tarayıcıdan doğrudan Cloudflare'e imzalı yükleme.</p></div>
+      <div class="step"><div class="n">02</div><h3>İşlenir</h3><p>Transcode + HLS + CDN + AI ön-eleme.</p></div>
+      <div class="step"><div class="n">03</div><h3>Moderasyon</h3><p>İnsan onayı; onaysız içerik kimseye görünmez.</p></div>
+      <div class="step"><div class="n">04</div><h3>Yayın</h3><p>İzleyici ücretsiz izler, sponsor pre-roll döner.</p></div>
+      <div class="step"><div class="n">05</div><h3>Kazanç</h3><p>İzlenme kaydedilir → sanatçı hakedişi + veri.</p></div>
+    </div>
+  </section>
+
+  <!-- HAZIR OLANLAR -->
+  <section>
+    <p class="eyebrow">Bugün hazır <span class="live">● CANLI</span></p>
+    <h2>Çalışan, gerçek bir ürün</h2>
+    <p class="lead" style="margin-bottom:24px">Bu bir sunum değil — çekirdek platform gerçek buluta bağlı ve çalışıyor. Video hariç her şey bugün kullanılabilir.</p>
+
+    <div class="feat"><div class="h">İzleyici deneyimi</div><div class="d">Katalog, sinematik detay, akıllı arama, kategori filtreleri, “İzlemeye devam et”, “Listem”, dizilerde sonraki bölüm.</div></div>
+    <div class="feat"><div class="h">Video altyapısı</div><div class="d">Doğrudan Cloudflare Stream yükleme, transcode/HLS/CDN, gerçek izlenme süresi ölçümü, sponsor pre-roll.</div></div>
+    <div class="feat"><div class="h">Çok-dilli alt yazı</div><div class="d">AI otomatik üretim: CF transkripsiyonu (senkron) + Claude çevirisi zaman damgalarını koruyarak 5 dile. Manuel VTT de desteklenir.</div></div>
+    <div class="feat"><div class="h">Tablo — haftalık AI sanat yarışması</div><div class="d">Haftada 1 gönderim → anonim tur-tur eleme → en iyi 50 sergi. Tam otomatik haftalık döngü.</div></div>
+    <div class="feat"><div class="h">Film yarışması</div><div class="d">Edinim/lansman taktiği: yarışma açma, üretici katılımı, izleyici oylaması, sıralı vitrin.</div></div>
+    <div class="feat"><div class="h">Moderasyon & güvenlik</div><div class="d">AI ön-eleme (Claude vision), admin/moderatör rolleri, içerik kaldırma + izleyici bildirimi, satır-düzey güvenlik (RLS), XSS koruması.</div></div>
+    <div class="feat"><div class="h">Gelir & analiz</div><div class="d">Sponsor yönetimi, gösterim/tıklama olayları, RPM tabanlı sanatçı hakediş raporu, izlenme analiz panosu.</div></div>
+    <div class="feat"><div class="h">Bildirimler</div><div class="d">Uygulama-içi zil + e-posta (Resend) + mobil push (Expo) — tek kuyruk, üç kanal.</div></div>
+    <div class="feat"><div class="h">Mobil uygulama</div><div class="d">Expo/React Native: izleyici, giriş, Listem, devam et, Tablo, 5 dil, push token kaydı.</div></div>
+    <div class="feat"><div class="h">5 dil</div><div class="d">EN varsayılan · TR · ES · DE · FR — arayüz, tarih/sayı biçimleri ve bildirimler dahil.</div></div>
+  </section>
+
+  <!-- AŞAMALAR -->
+  <section>
+    <p class="eyebrow">Yol haritası</p>
+    <h2>Beş aşama, canlıdan ölçeğe</h2>
+    <div class="tl" style="margin-top:28px">
+      <div class="phase done">
+        <div class="rail"><div class="badge">✓</div></div>
+        <div>
+          <div class="status">Tamamlandı · canlı</div>
+          <h3>Faz 0 — Çekirdek platform</h3>
+          <p>Web + mobil, katalog, Tablo, yarışma, moderasyon, roller, analiz, bildirimler, 5 dil. Gerçek Supabase buluta bağlı.</p>
+          <span class="cost-inline">Aylık maliyet: <b>~$0</b> (ücretsiz katmanlar)</span>
+        </div>
+      </div>
+      <div class="phase now">
+        <div class="rail"><div class="badge">1</div></div>
+        <div>
+          <div class="status">Şimdi · sıradaki</div>
+          <h3>Faz 1 — Video + alt yazı yayında</h3>
+          <p>Cloudflare Stream bağlanır, fonksiyonlar dağıtılır, webhook tanıtılır. Gerçek video yükleme/izleme ve AI çok-dilli alt yazı devreye girer.</p>
+          <span class="cost-inline">Ek maliyet: <b>~$5–15/ay</b> + kullanım</span>
+        </div>
+      </div>
+      <div class="phase next">
+        <div class="rail"><div class="badge">2</div></div>
+        <div>
+          <div class="status">Kısa vade</div>
+          <h3>Faz 2 — İnternete açılış</h3>
+          <p>Barındırma (Cloudflare Pages, ücretsiz) + alan adı + paylaşım kartları + ilk içerik seti. Halka açık, paylaşılabilir bir site.</p>
+          <span class="cost-inline">Ek maliyet: <b>~$10/yıl</b> (alan adı)</span>
+        </div>
+      </div>
+      <div class="phase next">
+        <div class="rail"><div class="badge">3</div></div>
+        <div>
+          <div class="status">Lansman</div>
+          <h3>Faz 3 — Lansman & pazarlama</h3>
+          <p>Yarışma edinim motoru, sosyal medya, PR (AI teması), sponsor satışı, influencer/üretici ortaklıkları. Kullanıcı ve içerik büyümesi.</p>
+          <span class="cost-inline">Pazarlama: <b>$200–8.000/ay</b> (senaryoya göre)</span>
+        </div>
+      </div>
+      <div class="phase next">
+        <div class="rail"><div class="badge">4</div></div>
+        <div>
+          <div class="status">Ölçek</div>
+          <h3>Faz 4 — Ölçekleme</h3>
+          <p>Mobil mağaza yayını (App Store / Play), gerçek reklam ağı (VAST/pre-roll), üretici ödemeleri (Stripe Connect), gelişmiş moderasyon.</p>
+          <span class="cost-inline">Altyapı kullanımla ölçeklenir; gelir hedefi &gt; maliyet</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PAZARLAMA -->
+  <section>
+    <p class="eyebrow">Büyüme & pazarlama</p>
+    <h2>Edinim ürünün içine gömülü</h2>
+    <p class="lead" style="margin-bottom:26px">Pazarlamanın çoğu ayrı bir bütçe değil, ürünün mekaniği: yarışmalar kullanıcı çeker, bildirimler geri getirir, AI kimliği doğal olarak paylaşılır.</p>
+    <div class="grid g2">
+      <div class="card"><div class="k">① Yarışma motoru</div><p>Haftalık <strong>Tablo</strong> (görsel) ve film yarışmaları katılım + oy + geri dönüş yaratır. Kazananlar sosyalde paylaşır → organik erişim. Zaten kurulu.</p></div>
+      <div class="card"><div class="k">② AI-native viralite</div><p>“Yalnızca AI içerik” konumu TikTok / YouTube / X'te doğal ilgi görür; paylaşım için derin bağlantı + OG kartları hazır.</p></div>
+      <div class="card"><div class="k">③ Üretici ortaklıkları</div><p>AI üreticiler kendi kitlelerini getirir; izlenmeyle kazandıkları için teşvikli. Gelir paylaşımı = düşük edinim maliyeti.</p></div>
+      <div class="card"><div class="k">④ Sponsor satışı</div><p>Markalar, ulaşması zor <strong>AI-meraklısı</strong> kitleye pre-roll ile ulaşır. Platformun ana gelir kalemi.</p></div>
+      <div class="card"><div class="k">⑤ Global + çok-dil</div><p>5 dil, ilk günden global pazar. Bölgesel yarışmalarla yerel topluluklar.</p></div>
+      <div class="card"><div class="k">⑥ PR & topluluk</div><p>AI + yaratıcılık teması basın için haber değeri taşır; Discord/topluluk ile üretici sadakati.</p></div>
+    </div>
+  </section>
+
+  <!-- MALİYETLER: BİRİM -->
+  <section>
+    <p class="eyebrow">Maliyetler · birim fiyatlar</p>
+    <h2>Neye, ne kadar ödenir</h2>
+    <p class="lead" style="margin-bottom:22px">Mimari “ince istemci, tek backend + CDN” olduğu için sabit gider çok düşük; asıl maliyet <strong>kullanımla</strong> (izlenen video dakikası) büyür ve reklam geliriyle eşleşir.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Servis</th><th>Ne için</th><th class="r">Fiyat (tahmini)</th></tr></thead>
+        <tbody>
+          <tr><td>Supabase</td><td>Veritabanı, giriş, depolama, fonksiyonlar</td><td class="r">Ücretsiz → <b class="num">$25</b>/ay (Pro)</td></tr>
+          <tr><td>Cloudflare Stream</td><td>Video depolama</td><td class="r"><b class="num">$5</b> / 1.000 dk·ay</td></tr>
+          <tr><td>Cloudflare Stream</td><td>Video teslim (izlenen)</td><td class="r"><b class="num">$1</b> / 1.000 dk</td></tr>
+          <tr><td>Cloudflare Pages</td><td>Web barındırma</td><td class="r"><b>Ücretsiz</b></td></tr>
+          <tr><td>Alan adı</td><td>domain</td><td class="r">~<b class="num">$10</b>/yıl</td></tr>
+          <tr><td>Resend</td><td>Bildirim e-postaları</td><td class="r">Ücretsiz (3k/ay) → <b class="num">$20</b>/ay</td></tr>
+          <tr><td>Anthropic (Claude)</td><td>Moderasyon + alt yazı çevirisi</td><td class="r">Kullanım (~<b class="num">$0.02–0.10</b>/video)</td></tr>
+          <tr><td>Mobil mağaza</td><td>Apple + Google + build</td><td class="r"><span class="num">$99</span>/yıl · <span class="num">$25</span> tek · EAS 0–<span class="num">99</span>/ay</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Fiyatlar Ağustos 2026 kamu fiyatlandırmasına göre tahminidir; kullanım ve katman seçimine göre değişir.</p>
+  </section>
+
+  <!-- MALİYETLER: SENARYO -->
+  <section>
+    <p class="eyebrow">Maliyetler · aylık senaryolar</p>
+    <h2>Pilottan ölçeğe, gerçekçi tahmin</h2>
+    <div class="grid g3" style="margin-top:24px">
+      <div class="scn">
+        <div class="tier">Pilot · ilk ay</div>
+        <div class="big">$8<span class="per"> – 15/ay</span></div>
+        <ul>
+          <li>Supabase <b>$0</b></li>
+          <li>Stream depolama <b>~$0.40</b></li>
+          <li>Stream teslim <b>~$5</b></li>
+          <li>Barındırma <b>$0</b></li>
+          <li>Alan adı <b>~$1</b></li>
+          <li>Claude <b>~$1–5</b></li>
+        </ul>
+        <p class="assume">Varsayım: ~10 video, ~5.000 izlenme-dakikası. Kredi kartıyla rahat başlar.</p>
+      </div>
+      <div class="scn mid">
+        <div class="tier" style="color:var(--accent)">Büyüme</div>
+        <div class="big">$235<span class="per"> – 265/ay</span></div>
+        <ul>
+          <li>Supabase Pro <b>$25</b></li>
+          <li>Stream depolama <b>~$4</b></li>
+          <li>Stream teslim <b>~$200</b></li>
+          <li>Resend <b>$0–20</b></li>
+          <li>Claude <b>~$5–15</b></li>
+        </ul>
+        <p class="assume">Varsayım: ~100 video, ~200.000 izlenme-dk, ~10k kullanıcı. Teslim baskın kalem — reklam geliriyle karşılanır.</p>
+      </div>
+      <div class="scn">
+        <div class="tier">Ölçek</div>
+        <div class="big">$2.1<span class="per">K – 2.8K/ay</span></div>
+        <ul>
+          <li>Supabase <b>$25–599</b></li>
+          <li>Stream depolama <b>~$40</b></li>
+          <li>Stream teslim <b>~$2.000</b></li>
+          <li>Resend <b>$20</b></li>
+          <li>Claude <b>~$50–150</b></li>
+        </ul>
+        <p class="assume">Varsayım: ~1.000 video, ~2.000.000 izlenme-dk/ay, 50k+ kullanıcı. Bu ölçekte hedef: gelir &gt; maliyet.</p>
+      </div>
+    </div>
+
+    <div class="tbl-wrap" style="margin-top:24px">
+      <table>
+        <thead><tr><th>Pazarlama kalemi</th><th>Yaklaşım</th><th class="r">Aylık (tahmini)</th></tr></thead>
+        <tbody>
+          <tr><td>Organik (yarışma + sosyal + PR)</td><td>Ürüne gömülü, viral potansiyelli</td><td class="r"><b>~$0</b></td></tr>
+          <tr><td>Yarışma ödülleri</td><td>Edinim motoru (haftalık $50–500)</td><td class="r"><span class="num">$200 – 2.000</span></td></tr>
+          <tr><td>Influencer / üretici ortaklığı</td><td>Gelir paylaşımı → nakit</td><td class="r"><span class="num">$0 – 2.000</span></td></tr>
+          <tr><td>Ücretli reklam (opsiyonel)</td><td>TikTok / Meta / YouTube hızlandırma</td><td class="r"><span class="num">$500 – 5.000</span></td></tr>
+          <tr class="accent-row"><td><b>Yalın lansman</b></td><td>Altyapı + küçük ödül + organik</td><td class="r"><b class="num">~$250 – 500/ay</b></td></tr>
+          <tr class="accent-row"><td><b>Agresif büyüme</b></td><td>+ ücretli reklam + büyük ödül</td><td class="r"><b class="num">~$3K – 8K/ay</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- BİRİM EKONOMİ -->
+  <section>
+    <p class="eyebrow">Neden sürdürülebilir</p>
+    <h2>Birim ekonomi: gelir teslimi karşılar</h2>
+    <div class="grid g2" style="margin-top:8px">
+      <div class="card"><div class="k">Teslim maliyeti</div><p style="font-size:15px;color:#D6D8D2"><b class="tag num">$0.001</b> / izlenen dakika. Ortalama 5 dk'lık bir izleme ≈ <b class="num">$0.005</b> maliyet.</p></div>
+      <div class="card"><div class="k">Reklam geliri</div><p style="font-size:15px;color:#D6D8D2">Sponsor pre-roll CPM <b class="num">$5–20</b> → izleme başına <b class="tag num">$0.005–0.02</b> gelir. Yani teslim maliyetini karşılar, hacimle marj açılır.</p></div>
+    </div>
+    <div class="callout" style="margin-top:16px">
+      <h3>Ayarlanabilir sanatçı payı</h3>
+      <p style="color:#D6D8D2;margin:0">Üretici hakedişi RPM (1.000 izlenme başına USD) ile hesaplanır ve panelden ayarlanır (varsayılan <b class="num">$2</b>). Platform, sponsor geliri ile teslim + hakediş arasındaki farkı marj olarak tutar. Ücretsiz izleme → hacim → sponsor değeri döngüsü modelin çekirdeği.</p>
+    </div>
+  </section>
+
+  <!-- ÖZET -->
+  <section>
+    <p class="eyebrow">Özet</p>
+    <h2>Nerede duruyoruz</h2>
+    <div class="grid g3" style="margin-top:20px">
+      <div class="card"><div class="k">Ürün</div><p style="color:#D6D8D2">Çalışan, canlı bir platform. Video hariç her şey bugün kullanılabilir.</p></div>
+      <div class="card"><div class="k">Başlangıç maliyeti</div><p style="color:#D6D8D2"><b class="tag num">~$10–15/ay</b> ile gerçek videolu lansmana geçilir.</p></div>
+      <div class="card"><div class="k">Sıradaki karar</div><p style="color:#D6D8D2">Cloudflare Stream'i bağla → video + AI alt yazı canlı; sonra internete aç ve lansman.</p></div>
+    </div>
+  </section>
+
+  <div class="foot">
+    Vaelo — yapay zekâ yapımı film, dizi ve sanat · her zaman ücretsiz<br>
+    Proje dosyası · maliyetler tahminidir, kullanıma göre değişir · Ağustos 2026
+  </div>
+
+</div>

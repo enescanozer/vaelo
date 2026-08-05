@@ -3,7 +3,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useAuth, signOut } from "./auth";
 import { supabase } from "./supabaseClient";
-import { getNotifications, markNotificationsRead } from "./catalog";
+import { getNotifications, markNotificationsRead, getYarismaGorunur } from "./catalog";
 import { useLang } from "./i18n";
 import { t } from "./theme";
 // Uzantı açık: Windows'ta "./Auth", auth.js ile çakışıyor
@@ -12,6 +12,8 @@ import Auth from "./Auth.jsx";
 // izleyici görmediği için ilk bundle'a girmezler.
 import Viewer from "./Viewer";
 import Contest from "./Contest";
+import Tablo from "./Tablo";
+import CreatorBasvuru from "./CreatorBasvuru";
 const Upload = lazy(() => import("./Upload"));
 const Studio = lazy(() => import("./Studio"));
 const AdminPanel = lazy(() => import("./AdminPanel"));
@@ -21,10 +23,12 @@ import AyarlarModal from "./AyarlarModal";
 
 const SEKMELER = [
   { id: "kesfet" },
+  { id: "tablo" },
   { id: "yarisma" },
+  { id: "uretici" },
   { id: "yukle", girisGerekli: true },
   { id: "studyo", girisGerekli: true },
-  { id: "panel", adminGerekli: true },
+  { id: "panel", modGerekli: true },
   { id: "analiz", adminGerekli: true },
 ];
 
@@ -43,9 +47,35 @@ export default function App() {
   const [istenenBaslik, setIstenenBaslik] = useState(null);
   // Logo/Keşfet tıklanınca Viewer'ı ana sayfaya döndüren sayaç sinyali
   const [anaSinyal, setAnaSinyal] = useState(0);
+  const [yarismaGorunur, setYarismaGorunur] = useState(false);
 
-  const admin = profile?.role === "admin";
-  const gorunurSekmeler = SEKMELER.filter((sk) => !sk.adminGerekli || admin);
+  const rol = profile?.role;
+  const admin = rol === "admin";
+  const moderator = rol === "admin" || rol === "moderator";
+  const creator = rol === "creator" || rol === "admin";
+  const cumaGunu = new Date().getUTCDay() === 5; // 5 = Cuma (UTC): eleme günü, Tablo normal kullanıcıya gizli
+
+  // Sekme görünürlüğü: normal kullanıcı sade menü görür (film/dizi + koşullu Tablo/Yarışma).
+  function sekmeGorunur(sk) {
+    switch (sk.id) {
+      case "tablo":
+        return admin || moderator || !cumaGunu; // Cuma kesilir, Cts sergiyle başlar
+      case "yarisma":
+        return admin || moderator || yarismaGorunur; // aktif VEYA bitiş+2 hafta
+      case "uretici":
+        return !!user && rol === "viewer"; // yalnız onaysız izleyici başvurur
+      case "yukle":
+      case "studyo":
+        return creator; // yalnız onaylı üretici (+admin)
+      case "panel":
+        return moderator;
+      case "analiz":
+        return admin;
+      default:
+        return true; // kesfet
+    }
+  }
+  const gorunurSekmeler = SEKMELER.filter(sekmeGorunur);
   const okunmamis = bildirimler.filter((b) => !b.read_at).length;
 
   // Bildirimler yalnızca girişte yüklenir; taze liste zil AÇILINCA çekilir
@@ -63,6 +93,11 @@ export default function App() {
       aktif = false;
     };
   }, [user?.id]);
+
+  // Yarışma sekmesi penceresi (aktif VEYA bitiş+2 hafta) — bir kez yüklenir
+  useEffect(() => {
+    getYarismaGorunur().then(setYarismaGorunur).catch(() => {});
+  }, []);
 
   async function zilAcKapat() {
     const acilacak = !zilAcik;
@@ -132,7 +167,7 @@ export default function App() {
             cursor: "pointer",
           }}
         >
-          LATENT
+          VAELO
         </div>
 
         <nav style={{ display: "flex", gap: 24, flex: 1, overflowX: "auto" }}>
@@ -233,32 +268,50 @@ export default function App() {
                       {s.kabuk.bildirimYok}
                     </div>
                   )}
-                  {bildirimler.map((b) => (
-                    <div
-                      key={b.id}
-                      style={{
-                        padding: "10px 12px",
-                        borderRadius: 8,
-                        fontSize: 13,
-                        lineHeight: 1.4,
-                      }}
-                    >
-                      <span style={{ fontWeight: 600 }}>
-                        {b.titles?.name ?? s.kabuk.yeniIcerik}
-                      </span>
-                      {b.videos?.season != null && (
-                        <span style={{ color: t.dim }}>
-                          {" "}
-                          {s.genel.seb(b.videos.season, b.videos.episode)}
-                          {b.videos.name ? ` — ${b.videos.name}` : ""}
-                        </span>
-                      )}
-                      <span style={{ color: t.dim }}> {s.kabuk.yayinda}</span>
-                      <div style={{ color: t.dim, fontSize: 11, marginTop: 2 }}>
-                        {new Date(b.created_at).toLocaleString(s.locale)}
+                  {bildirimler.map((b) => {
+                    // Tablo (art) bildirimleri: metin türe göre, tıklayınca Tablo sekmesi
+                    const art = b.kind === "art_eleme" || b.kind === "art_sergi";
+                    const tabloyaGit = () => {
+                      setSekme("tablo");
+                      setZilAcik(false);
+                    };
+                    return (
+                      <div
+                        key={b.id}
+                        onClick={art ? tabloyaGit : undefined}
+                        style={{
+                          padding: "10px 12px",
+                          borderRadius: 8,
+                          fontSize: 13,
+                          lineHeight: 1.4,
+                          cursor: art ? "pointer" : "default",
+                        }}
+                      >
+                        {art ? (
+                          <span style={{ fontWeight: 600 }}>
+                            {b.kind === "art_eleme" ? s.art.bildirimEleme : s.art.bildirimSergi}
+                          </span>
+                        ) : (
+                          <>
+                            <span style={{ fontWeight: 600 }}>
+                              {b.titles?.name ?? s.kabuk.yeniIcerik}
+                            </span>
+                            {b.videos?.season != null && (
+                              <span style={{ color: t.dim }}>
+                                {" "}
+                                {s.genel.seb(b.videos.season, b.videos.episode)}
+                                {b.videos.name ? ` — ${b.videos.name}` : ""}
+                              </span>
+                            )}
+                            <span style={{ color: t.dim }}> {s.kabuk.yayinda}</span>
+                          </>
+                        )}
+                        <div style={{ color: t.dim, fontSize: 11, marginTop: 2 }}>
+                          {new Date(b.created_at).toLocaleString(s.locale)}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             )}
@@ -352,6 +405,14 @@ export default function App() {
         {sekme === "kesfet" && (
           <Viewer user={user} istenen={istenenBaslik} anaSinyal={anaSinyal} />
         )}
+        {sekme === "tablo" && (
+          <Tablo
+            user={user}
+            admin={admin}
+            moderator={moderator}
+            girisAc={() => setGirisAcik(true)}
+          />
+        )}
         {sekme === "yarisma" && (
           <Contest
             user={user}
@@ -362,6 +423,9 @@ export default function App() {
             girisAc={() => setGirisAcik(true)}
           />
         )}
+        {sekme === "uretici" && (
+          <CreatorBasvuru user={user} girisAc={() => setGirisAcik(true)} />
+        )}
         {/* Lazy ekranlar: chunk yüklenene dek sade bir yükleniyor durumu */}
         <Suspense
           fallback={
@@ -370,9 +434,9 @@ export default function App() {
             </div>
           }
         >
-          {sekme === "yukle" && user && <Upload user={user} />}
-          {sekme === "studyo" && user && <Studio />}
-          {sekme === "panel" && admin && <AdminPanel />}
+          {sekme === "yukle" && creator && <Upload user={user} />}
+          {sekme === "studyo" && creator && <Studio />}
+          {sekme === "panel" && moderator && <AdminPanel admin={admin} />}
           {sekme === "analiz" && admin && <AnalyticsPanel />}
         </Suspense>
       </main>
@@ -392,7 +456,7 @@ export default function App() {
       >
         <span>
           <span style={{ fontFamily: t.display, fontWeight: 800, letterSpacing: 1 }}>
-            LATENT
+            VAELO
           </span>
           {" — "}
           {s.kabuk.altBilgi1}

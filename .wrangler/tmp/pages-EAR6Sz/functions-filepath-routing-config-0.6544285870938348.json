@@ -1,0 +1,13 @@
+{
+  "routes": [
+    {
+      "routePath": "/:yol*",
+      "mountPath": "/",
+      "method": "",
+      "module": [
+        "[[yol]].js:onRequest"
+      ]
+    }
+  ],
+  "baseURL": "/"
+}

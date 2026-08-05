@@ -319,6 +319,17 @@ max_frequency = "5s"
 # Use an external OAuth provider. The full list of providers are: `apple`, `azure`, `bitbucket`,
 # `discord`, `facebook`, `github`, `gitlab`, `google`, `keycloak`, `linkedin_oidc`, `notion`, `twitch`,
 # `twitter`, `x`, `slack`, `spotify`, `workos`, `zoom`.
+# ————— Vaelo: Google ile giriş —————
+# Etkinleştirmek için Google Cloud'da OAuth istemcisi oluştur, aşağıyı doldur ve
+# .env'e GOOGLE_CLIENT_ID / GOOGLE_SECRET yaz (bkz. README "Google ile giriş").
+# Üretimde bu ayar Supabase Dashboard → Authentication → Providers'tan yapılır.
+[auth.external.google]
+enabled = false
+client_id = "env(GOOGLE_CLIENT_ID)"
+secret = "env(GOOGLE_SECRET)"
+# Yerelde Google girişi için nonce kontrolü atlanmalı:
+skip_nonce_check = true
+
 [auth.external.apple]
 enabled = false
 client_id = ""
@@ -388,7 +399,7 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
-# ————— Latent Edge Function ayarları —————
+# ————— Vaelo Edge Function ayarları —————
 # stream-webhook: Cloudflare JWT gönderemez; JWT doğrulaması burada kapalı tutulur.
 # Böylece `npx supabase functions deploy` bayraksız çalışır.
 [functions.stream-webhook]
@@ -400,6 +411,11 @@ verify_jwt = true
 [functions.add-caption]
 verify_jwt = true
 
+[functions.generate-captions]
+verify_jwt = true
+# AI çok-dilli senkron alt yazı: CF transkripsiyonu + Claude çevirisi (zaman damgaları korunur).
+# Secret'lar: CF_ACCOUNT_ID, CF_API_TOKEN, ANTHROPIC_API_KEY. Üreticiden Stüdyo'dan çağrılır.
+
 [functions.notify-new-content]
 verify_jwt = true
 # Zamanlama: Dashboard → Edge Functions → notify-new-content → Schedule
@@ -409,6 +425,24 @@ verify_jwt = true
 verify_jwt = true
 # Zamanlama: Dashboard → Edge Functions → ai-screen → Schedule
 # önerilen ifade: */10 * * * *  (ANTHROPIC_API_KEY secret'ı gerektirir)
+
+[functions.art-cron]
+verify_jwt = true
+# "Tablo" haftalık döngüsü (UTC 00:00 çıpalı). PROD kararına göre zamanlanır.
+# Zamanlama: Dashboard → Edge Functions → art-cron → Schedule
+# önerilen ifade: 0 */2 * * *  (her 2 saatte — gün-başı geçişleri + Cuma tur cascade'i kapsar)
+
+[functions.art-screen]
+verify_jwt = true
+# Tablo görselleri için Claude vision ön-elemesi (ai-screen ile aynı ANTHROPIC_API_KEY).
+# Zamanlama: Dashboard → Edge Functions → art-screen → Schedule
+# önerilen ifade: */10 * * * *
+
+[functions.send-push]
+verify_jwt = true
+# Bildirim kuyruğunu (push_sent_at boş) mobil cihazlara Expo Push API ile gönderir.
+# Zamanlama: Dashboard → Edge Functions → send-push → Schedule
+# önerilen ifade: */5 * * * *  (secret gerekmez)
 
 [analytics]
 # Yerel geliştirmede logflare gerekmez (ağır + bu kurulumda imaj sorunlu); kapalı.

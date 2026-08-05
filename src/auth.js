@@ -18,6 +18,18 @@ export function signOut() {
   return supabase.auth.signOut();
 }
 
+// Google ile giriş (OAuth). Google onay ekranına yönlendirir; geri dönünce
+// supabase-js URL'deki oturumu otomatik yakalar (detectSessionInUrl varsayılan).
+// ÇALIŞMASI İÇİN: Supabase projesinde Google sağlayıcısı açık + Google Cloud'da
+// OAuth istemcisi tanımlı olmalı (bkz. README "Google ile giriş"). Aksi halde
+// Supabase bir yapılandırma hatası döndürür.
+export function signInWithGoogle() {
+  return supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: window.location.origin },
+  });
+}
+
 // Oturum (session) + profil (profiles satırı) durumu
 export function useAuth() {
   const [session, setSession] = useState(null);

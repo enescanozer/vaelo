@@ -26,10 +26,13 @@ const DilBaglami = createContext(null);
 export function DilSaglayici({ children }) {
   const [dil, setDilState] = useState(mevcutDil);
 
-  // <html lang> ve sekme başlığını dille eşle. Başlık yalnızca taban başlıkken
+  // <html lang/dir> ve sekme başlığını dille eşle. Başlık yalnızca taban başlıkken
   // değiştirilir — detay sayfası içerik adını yazdıysa ona dokunulmaz.
+  // Arapça = sağdan-sola (RTL): document.dir'i çeviririz; metin akışı ve hizalama döner.
   useEffect(() => {
+    const RTL_DILLER = ["ar"]; // ileride he/fa eklenebilir
     document.documentElement.lang = dil;
+    document.documentElement.dir = RTL_DILLER.includes(dil) ? "rtl" : "ltr";
     const tabanlar = Object.values(METINLER).map((m) => m.belgeBasligi);
     if (tabanlar.includes(document.title)) {
       document.title = METINLER[dil].belgeBasligi;

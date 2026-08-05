@@ -6,8 +6,8 @@
 //            (örn. her 15 dakikada: */15 * * * *)
 // Secret'lar:
 //   supabase secrets set RESEND_API_KEY=re_...
-//   supabase secrets set MAIL_FROM="Latent <bildirim@alanadiniz.com>"
-//   supabase secrets set SITE_URL=https://latent.example
+//   supabase secrets set MAIL_FROM="Vaelo <bildirim@alanadiniz.com>"
+//   supabase secrets set SITE_URL=https://vaelo.example
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 Deno.serve(async () => {
@@ -38,7 +38,7 @@ Deno.serve(async () => {
     }
 
     const resendAnahtar = Deno.env.get("RESEND_API_KEY");
-    const gonderen = Deno.env.get("MAIL_FROM") ?? "Latent <onboarding@resend.dev>";
+    const gonderen = Deno.env.get("MAIL_FROM") ?? "Vaelo <onboarding@resend.dev>";
     const siteUrl = Deno.env.get("SITE_URL") ?? "";
     let gonderilen = 0;
 
@@ -51,6 +51,11 @@ Deno.serve(async () => {
       if (resendAnahtar && email && dogrulanmis) {
         const satirlar = liste
           .map((b) => {
+            // Tablo (art) bildirimleri: içerik başlığı yok, tür metnini kullan
+            if (b.kind === "art_eleme")
+              return "• Tablo: oylama açıldı — bu haftanın 50 eserini seçmeye yardım et";
+            if (b.kind === "art_sergi")
+              return "• Tablo: bu haftanın AI sanat sergisi yayında";
             const v = b.videos as { name?: string; season?: number; episode?: number } | null;
             const bolum =
               v?.season != null ? ` S${v.season}·B${v.episode}` : "";
@@ -68,8 +73,8 @@ Deno.serve(async () => {
           body: JSON.stringify({
             from: gonderen,
             to: email,
-            subject: "Latent'te listendeki içeriklere yeni bölümler eklendi",
-            text: `Merhaba,\n\nListendeki içeriklere yeni bölümler eklendi:\n\n${satirlar}\n\nİzlemek için: ${siteUrl}\n\nLatent — yapay zekâ yapımı film ve diziler, her zaman ücretsiz.`,
+            subject: "Vaelo'te senin için yenilikler var",
+            text: `Merhaba,\n\nVaelo'te senin için yeni gelişmeler:\n\n${satirlar}\n\nGörmek için: ${siteUrl}\n\nVaelo — yapay zekâ yapımı film, dizi ve sanat; her zaman ücretsiz.`,
           }),
         });
         if (cevap.ok) gonderilen++;

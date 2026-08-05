@@ -1,4 +1,4 @@
-# Latent — Kod Rehberi
+# Vaelo — Kod Rehberi
 
 Bu belge, projedeki **her dosyanın ne işe yaradığını** ve ekranların birbirine
 nasıl bağlandığını sade dille anlatır. Kurulum/çalıştırma için [README.md](README.md),
@@ -6,7 +6,7 @@ katkı kuralları için [CLAUDE.md](CLAUDE.md).
 
 ---
 
-## 1. Latent nedir?
+## 1. Vaelo nedir?
 
 Tamamen yapay zekâ ile üretilmiş **film ve dizilerin** yayınlandığı, izleyiciye
 **her zaman ücretsiz** bir streaming platformu. Reklam + sponsorlukla finanse edilir,

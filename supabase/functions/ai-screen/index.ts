@@ -32,7 +32,7 @@ const SEMA = {
   additionalProperties: false,
 };
 
-const SISTEM_ISTEMI = `You pre-screen video metadata for Latent, a free ad-supported
+const SISTEM_ISTEMI = `You pre-screen video metadata for Vaelo, a free ad-supported
 streaming platform for fully AI-generated films and series. Assess the likelihood that
 the content violates policy: graphic violence, sexual content, hate or harassment,
 self-harm, illegal activity, or impersonation of real people/franchises (copyright).

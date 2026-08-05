@@ -58,10 +58,10 @@ export async function onRequest(context) {
 
     let html = await cevap.text();
     html = html
-      .replace(/<title>[^<]*<\/title>/, `<title>${ad} — Latent</title>`)
+      .replace(/<title>[^<]*<\/title>/, `<title>${ad} — Vaelo</title>`)
       .replace(
         /property="og:title"\s+content="[^"]*"/,
-        `property="og:title" content="${ad} — Latent"`
+        `property="og:title" content="${ad} — Vaelo"`
       )
       .replace(
         /property="og:description"\s+content="[^"]*"/,

@@ -1,4 +1,4 @@
-# Latent
+# Vaelo
 
 Tamamen **yapay zekâ ile üretilmiş film ve dizilerin** yayınlandığı, izleyiciye **her zaman
 ücretsiz** streaming platformu. Reklam + sponsorlukla finanse edilir; sanatçılar izlenmeyle
@@ -56,6 +56,22 @@ npm install
    update public.profiles set role = 'admin' where id = '<kullanici-uuid>';
    ```
 
+### 2b. Google ile giriş (isteğe bağlı)
+"Google ile devam et" düğmesinin kod tarafı hazır; çalışması için Google sağlayıcısını
+açman yeter:
+1. [Google Cloud Console](https://console.cloud.google.com) → **APIs & Services →
+   Credentials → Create OAuth client ID → Web application**
+2. **Authorized redirect URI**: `https://<PROJE-REF>.supabase.co/auth/v1/callback`
+   (yerel test için ayrıca `http://127.0.0.1:54321/auth/v1/callback`)
+3. Oluşan **Client ID** ve **Client secret**'ı Supabase panelinde tanımla:
+   **Authentication → Providers → Google** → aç, ikisini yapıştır, kaydet.
+4. Bitti — modaldeki düğme kullanıcıyı Google onayına götürür, dönüşte oturum açılır.
+
+> Yerelde denemek için: `supabase/config.toml`'daki `[auth.external.google]`'ı
+> `enabled = true` yap, `.env`'e `GOOGLE_CLIENT_ID` + `GOOGLE_SECRET` ekle, sonra
+> `npx supabase stop && npx supabase start`. (Provider açık değilse düğme
+> "provider is not enabled" hatası döndürür — bu beklenen davranıştır.)
+
 ### 3. Cloudflare Stream
 1. Stream aboneliği olan bir Cloudflare hesabında **hesap kodunu**
    (`customer-<KOD>.cloudflarestream.com`) `src/config.js` → `CF_CODE`'a yaz.
@@ -67,7 +83,7 @@ npm run fn:deploy    # üç fonksiyonu birden dağıtır
                      # (stream-webhook'un JWT ayarı supabase/config.toml'da hazır)
 
 npx supabase secrets set CF_ACCOUNT_ID=... CF_API_TOKEN=... CF_WEBHOOK_SECRET=...
-npx supabase secrets set RESEND_API_KEY=... MAIL_FROM="Latent <bildirim@alanadi.com>" SITE_URL=https://...
+npx supabase secrets set RESEND_API_KEY=... MAIL_FROM="Vaelo <bildirim@alanadi.com>" SITE_URL=https://...
 ```
 - Cloudflare → Stream → Webhooks'a `stream-webhook` fonksiyonunun URL'ini ekle.
 - `notify-new-content`'i Dashboard → Edge Functions → Schedule ile zamanla

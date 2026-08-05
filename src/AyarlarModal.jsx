@@ -7,7 +7,10 @@ import { useAyarlar } from "./ayarlar";
 import { t } from "./theme";
 
 // Dil kodu → yerel ad (seçicilerde okunur görünsün)
-const DIL_ADI = { en: "English", tr: "Türkçe", es: "Español", de: "Deutsch", fr: "Français" };
+const DIL_ADI = {
+  en: "English", tr: "Türkçe", es: "Español", de: "Deutsch", fr: "Français",
+  ru: "Русский", ar: "العربية", zh: "中文",
+};
 
 export default function AyarlarModal({ kapat }) {
   const { s, dil, setDil } = useLang();

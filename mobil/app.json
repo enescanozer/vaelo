@@ -1,19 +1,30 @@
 {
   "expo": {
-    "name": "Latent",
-    "slug": "latent",
+    "name": "Vaelo",
+    "slug": "vaelo",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0A0A0B",
     "android": {
-      "package": "app.latent.mobil"
+      "package": "app.vaelo.mobil"
     },
     "ios": {
-      "bundleIdentifier": "app.latent.mobil"
+      "bundleIdentifier": "app.vaelo.mobil"
     },
     "plugins": [
-      "expo-asset"
-    ]
+      "expo-asset",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Vaelo needs access to your photos so you can submit artwork to the weekly Art contest."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "f55d2084-f754-4b7d-b3d5-8b84a64341a6"
+      }
+    }
   }
 }
