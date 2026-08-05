@@ -61,6 +61,17 @@ const t = {
 
 const AYAR_ANAHTAR = "latent_mobil_ayarlar";
 
+// ————— STEP 1: ücretsiz oynatma doğrulaması (geçici) —————
+// Cloudflare Stream'e para harcamadan Watch→oynatıcı→gerçek oynatma zincirini kanıtlamak
+// için, cf_uid YOKKEN (demo seed) herkese açık bir test HLS akışı oynatılır. iOS WebView
+// <video>'yu native HLS ile oynatır (hls.js gerekmez). cf_uid gerçek UID olunca (Step 2)
+// otomatik CF iframe'e döner — bu blok o zaman kaldırılabilir. CF_CODE'a DOKUNMAZ.
+const TEST_HLS = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
+const testOynaticiHtml = (url) =>
+  `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">` +
+  `<style>html,body{margin:0;background:#000;height:100%}video{width:100%;height:100%;object-fit:contain;background:#000}</style></head>` +
+  `<body><video src="${url}" controls autoplay muted playsinline webkit-playsinline></video></body></html>`;
+
 // Kullanıcı-girdisi URL güvenliği: yalnız http/https (javascript:/data: engellenir).
 // Şema yoksa https:// varsay. Güvenli değilse null.
 function guvenliUrl(ham) {
@@ -759,14 +770,21 @@ function Oynatici({ d, video, baslik, user, altyaziDil, oynat, geri }) {
         <Text style={s.dim}>{d.geri}</Text>
       </TouchableOpacity>
 
-      {/* Video en üstte, tam genişlik, sabit */}
+      {/* Video en üstte, tam genişlik, sabit.
+          cf_uid varsa CF Stream iframe; yoksa (demo) STEP 1 ücretsiz test HLS. */}
       <View style={{ aspectRatio: 16 / 9, backgroundColor: "#000" }}>
         <WebView
           key={video.id}
-          source={{ uri: iframeUrl(video.cf_uid, altyaziDil) }}
+          source={
+            video.cf_uid
+              ? { uri: iframeUrl(video.cf_uid, altyaziDil) }
+              : { html: testOynaticiHtml(TEST_HLS) }
+          }
+          originWhitelist={["*"]}
           style={{ backgroundColor: "#000" }}
           allowsFullscreenVideo
           allowsInlineMediaPlayback
+          mediaPlaybackRequiresUserAction={false}
         />
       </View>
 
