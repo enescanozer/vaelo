@@ -1,7 +1,35 @@
-# ————————————————————————————————————————————————————————————————
-  # 2) iOS — macOS M2 runner, imzasız SİMÜLATÖR build'i (Apple hesabı GEREKMEZ)
-  #    Çıktı .app → zip → Appetize.io'ya yükle → tarayıcıda iPhone'da çalıştır.
-  # ————————————————————————————————————————————————————————————————
+# Codemagic CI/CD — Vaelo mobil (Expo SDK 52, managed workflow)
+workflows:
+  android-test:
+    name: Vaelo Android (test APK)
+    instance_type: linux_x2
+    max_build_duration: 60
+    environment:
+      node: 20.11.0
+    scripts:
+      - name: Bağımlılıkları kur
+        script: |
+          cd mobil
+          npm ci
+      - name: Expo prebuild (android/ üret)
+        script: |
+          cd mobil
+          npx expo prebuild --platform android --clean --no-install
+      - name: Debug APK derle (imza gerektirmez)
+        script: |
+          cd mobil/android
+          chmod +x ./gradlew
+          ./gradlew assembleDebug
+    artifacts:
+      - mobil/android/app/build/outputs/**/*.apk
+    publishing:
+      email:
+        recipients:
+          - canenesqy@gmail.com
+        notify:
+          success: true
+          failure: true
+
   ios-simulator:
     name: Vaelo iOS (simülatör — Appetize)
     instance_type: mac_mini_m2
