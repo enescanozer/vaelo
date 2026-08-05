@@ -1,48 +1,4 @@
-# Codemagic CI/CD — Vaelo mobil (Expo SDK 52, managed workflow)
-# Uygulama repo kökünün `mobil/` alt klasöründedir; her betik oraya cd eder.
-# Managed workflow olduğu için native klasör yok → her build `expo prebuild` ile üretir.
-#
-# İki test çıktısı (ikisi de ücretsiz katmana sığar, ikisi de imza/Apple hesabı GEREKTİRMEZ):
-#   1) android-test  → Linux runner → kurulabilir debug APK
-#   2) ios-simulator → macOS M2 runner → simülatör .app (Appetize.io'da tarayıcıda çalışır)
-#
-# Mağaza/gerçek cihaz için imzalı derlemeler en altta (Apple Developer / Play Console hesabı gerekir).
-
-workflows:
-  # ————————————————————————————————————————————————————————————————
-  # 1) ANDROID — Linux runner, imzasız debug APK (hemen test edilebilir)
-  # ————————————————————————————————————————————————————————————————
-  android-test:
-    name: Vaelo Android (test APK)
-    instance_type: linux_x2
-    max_build_duration: 60
-    environment:
-      node: 20.11.0
-    scripts:
-      - name: Bağımlılıkları kur
-        script: |
-          cd mobil
-          npm ci
-      - name: Expo prebuild (android/ üret)
-        script: |
-          cd mobil
-          npx expo prebuild --platform android --clean --no-install
-      - name: Debug APK derle (imza gerektirmez)
-        script: |
-          cd mobil/android
-          chmod +x ./gradlew
-          ./gradlew assembleDebug
-    artifacts:
-      - mobil/android/app/build/outputs/**/*.apk
-    publishing:
-      email:
-        recipients:
-          - canenesqy@gmail.com
-        notify:
-          success: true
-          failure: true
-
-  # ————————————————————————————————————————————————————————————————
+# ————————————————————————————————————————————————————————————————
   # 2) iOS — macOS M2 runner, imzasız SİMÜLATÖR build'i (Apple hesabı GEREKMEZ)
   #    Çıktı .app → zip → Appetize.io'ya yükle → tarayıcıda iPhone'da çalıştır.
   # ————————————————————————————————————————————————————————————————
@@ -71,22 +27,30 @@ workflows:
         script: |
           cd mobil/ios
           SCHEME=$(ls -d *.xcworkspace | sed 's/\.xcworkspace$//')
-          echo "Şema: $SCHEME"
+          echo "Şema tespit edildi: $SCHEME"
+          
           xcodebuild \
             -workspace "$SCHEME.xcworkspace" \
             -scheme "$SCHEME" \
             -configuration Release \
             -sdk iphonesimulator \
+            -arch arm64 \
             -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO | xcpretty || true
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            PROVISIONING_PROFILE_SPECIFIER=""
       - name: .app'i zip'le (Appetize için)
         script: |
-          APP_PATH=$(find mobil/ios/build -name "*.app" -type d | head -n 1)
+          cd mobil/ios
+          APP_PATH=$(find build -name "*.app" -type d | head -n 1)
           if [ -n "$APP_PATH" ]; then
+            echo "Bulunan .app yolu: $APP_PATH"
             cd "$(dirname "$APP_PATH")"
             zip -r $CM_BUILD_DIR/vaelo-sim.zip "$(basename "$APP_PATH")"
           else
-            echo "HATA: .app dosyası bulunamadı!" && exit 1
+            echo "HATA: .app klasörü üretilemedi!"
+            exit 1
           fi
     artifacts:
       - "*.zip"
@@ -97,66 +61,3 @@ workflows:
         notify:
           success: true
           failure: true
-
-  # ————————————————————————————————————————————————————————————————
-  # 3) (İLERİDE) iOS — imzalı .ipa (TestFlight / App Store)
-  # ————————————————————————————————————————————————————————————————
-  # ios-release:
-  #   name: Vaelo iOS (imzalı .ipa)
-  #   instance_type: mac_mini_m2
-  #   max_build_duration: 90
-  #   integrations:
-  #     app_store_connect: Vaelo ASC Key
-  #   environment:
-  #     node: 20.11.0
-  #     xcode: latest
-  #     cocoapods: default
-  #     ios_signing:
-  #       distribution_type: app_store
-  #       bundle_identifier: app.vaelo.mobil
-  #   scripts:
-  #     - name: Bağımlılıkları kur
-  #       script: cd mobil && npm ci
-  #     - name: Expo prebuild
-  #       script: cd mobil && npx expo prebuild --platform ios --clean --no-install
-  #     - name: Pods
-  #       script: cd mobil/ios && pod install
-  #     - name: İmza profillerini çek
-  #       script: cd mobil/ios && xcode-project use-profiles
-  #     - name: .ipa derle
-  #       script: |
-  #         cd mobil/ios
-  #         SCHEME=$(ls -d *.xcworkspace | sed 's/\.xcworkspace$//')
-  #         xcode-project build-ipa --workspace "$SCHEME.xcworkspace" --scheme "$SCHEME"
-  #   artifacts:
-  #     - mobil/ios/build/ios/ipa/*.ipa
-  #   publishing:
-  #     app_store_connect:
-  #       auth: integration
-  #       submit_to_testflight: true
-
-  # ————————————————————————————————————————————————————————————————
-  # 4) (İLERİDE) ANDROID — imzalı release APK/AAB (Play Console)
-  # ————————————————————————————————————————————————————————————————
-  # android-release:
-  #   name: Vaelo Android (imzalı AAB)
-  #   instance_type: linux_x2
-  #   max_build_duration: 60
-  #   environment:
-  #     node: 20.11.0
-  #     android_signing:
-  #       - vaelo_keystore
-  #     vars:
-  #       PACKAGE_NAME: "app.vaelo.mobil"
-  #   scripts:
-  #     - name: Bağımlılıkları kur
-  #       script: cd mobil && npm ci
-  #     - name: Expo prebuild
-  #       script: cd mobil && npx expo prebuild --platform android --clean --no-install
-  #     - name: AAB derle
-  #       script: |
-  #         cd mobil/android
-  #         chmod +x ./gradlew
-  #         ./gradlew bundleRelease
-  #   artifacts:
-  #     - mobil/android/app/build/outputs/**/*.aab
