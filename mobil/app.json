@@ -19,7 +19,8 @@
         {
           "photosPermission": "Vaelo needs access to your photos so you can submit artwork to the weekly Art contest."
         }
-      ]
+      ],
+      "./plugins/withFmtFix.js"
     ],
     "extra": {
       "eas": {

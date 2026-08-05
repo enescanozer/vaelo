@@ -520,8 +520,31 @@ function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac }) {
 
               {/* Hero */}
               <TouchableOpacity style={s.hero} onPress={() => ac(hero.id)} activeOpacity={0.85}>
-                {thumbUrl(hero.videos[0]?.cf_uid) && (
+                {thumbUrl(hero.videos[0]?.cf_uid) ? (
                   <Image source={{ uri: thumbUrl(hero.videos[0].cf_uid) }} style={s.heroKapak} />
+                ) : (
+                  <View
+                    style={[
+                      s.heroKapak,
+                      {
+                        opacity: 1,
+                        backgroundColor: `hsl(${adTonu(hero.name || "?")}, 44%, 18%)`,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 120,
+                        fontWeight: "800",
+                        color: `hsl(${adTonu(hero.name || "?")}, 58%, 44%)`,
+                        opacity: 0.4,
+                      }}
+                    >
+                      {(hero.name?.[0] || "?").toUpperCase()}
+                    </Text>
+                  </View>
                 )}
                 <View style={s.heroGovde}>
                   <Text style={s.ustBilgi}>
@@ -553,10 +576,49 @@ function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac }) {
   );
 }
 
+// ————— Kapak (poster) —————
+// cf_uid varsa CF thumbnail; yoksa TEMALI POSTER: başlık adından belirlenimci renk +
+// filigran baş harf (+ geniş kartlarda başlık). Video altyapısı GEREKMEZ — gerçek
+// kapak cf_uid gelince otomatik devreye girer. Yeni bağımlılık yok (hsl + View katmanı).
+function adTonu(ad = "?") {
+  let h = 0;
+  for (let i = 0; i < ad.length; i++) h = (h * 31 + ad.charCodeAt(i)) % 360;
+  return h;
+}
+function Kapak({ baslik, harf = 34, adGoster = false }) {
+  const url = thumbUrl(baslik.videos?.[0]?.cf_uid);
+  if (url) return <Image source={{ uri: url }} style={{ width: "100%", height: "100%" }} />;
+  const h = adTonu(baslik.name || "?");
+  return (
+    <View style={{ width: "100%", height: "100%", backgroundColor: `hsl(${h}, 44%, 20%)`, justifyContent: "flex-end" }}>
+      <Text
+        style={{
+          position: "absolute",
+          top: -harf * 0.3,
+          right: harf * 0.15,
+          fontSize: harf * 2.6,
+          fontWeight: "800",
+          color: `hsl(${h}, 58%, 46%)`,
+          opacity: 0.4,
+        }}
+      >
+        {(baslik.name?.[0] || "?").toUpperCase()}
+      </Text>
+      {adGoster ? (
+        <Text
+          numberOfLines={2}
+          style={{ paddingHorizontal: 10, paddingVertical: 8, color: t.text, fontWeight: "700", fontSize: 14 }}
+        >
+          {baslik.name}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 // Dikey akış kartı: geniş kapak + başlık + tür satırı + 3 satır açıklama.
 // gomulu=true → dış kap zaten yatay dolgulu (süzülmüş ızgara).
 function AkisKarti({ d, baslik, ac, gomulu }) {
-  const kapak = thumbUrl(baslik.videos?.[0]?.cf_uid);
   return (
     <TouchableOpacity
       style={{ marginTop: gomulu ? 20 : 28, paddingHorizontal: gomulu ? 0 : 16 }}
@@ -564,13 +626,7 @@ function AkisKarti({ d, baslik, ac, gomulu }) {
       activeOpacity={0.85}
     >
       <View style={s.akisKapak}>
-        {kapak ? (
-          <Image source={{ uri: kapak }} style={{ width: "100%", height: "100%" }} />
-        ) : (
-          <Text style={[s.kartHarf, { fontSize: 40 }]}>
-            {baslik.name?.[0]?.toUpperCase()}
-          </Text>
-        )}
+        <Kapak baslik={baslik} harf={44} adGoster />
       </View>
       <Text style={s.akisAd}>{baslik.name}</Text>
       <Text style={s.kartAlt}>
@@ -589,7 +645,6 @@ function AkisKarti({ d, baslik, ac, gomulu }) {
 
 // Akıllı arama sonucu: kapak solda, sağda ad + tür + 2 satır açıklama
 function SonucSatiri({ d, baslik, ac }) {
-  const kapak = thumbUrl(baslik.videos?.[0]?.cf_uid);
   return (
     <TouchableOpacity
       style={s.sonucSatiri}
@@ -597,11 +652,7 @@ function SonucSatiri({ d, baslik, ac }) {
       activeOpacity={0.85}
     >
       <View style={s.sonucKapak}>
-        {kapak ? (
-          <Image source={{ uri: kapak }} style={{ width: "100%", height: "100%" }} />
-        ) : (
-          <Text style={s.kartHarf}>{baslik.name?.[0]?.toUpperCase()}</Text>
-        )}
+        <Kapak baslik={baslik} harf={26} />
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={s.kartAd} numberOfLines={1}>
@@ -780,15 +831,10 @@ function YatayRaf({ d, ad, ogeler }) {
         contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
       >
         {ogeler.map(({ baslik, bas }) => {
-          const kapak = thumbUrl(baslik.videos?.[0]?.cf_uid);
           return (
             <TouchableOpacity key={baslik.id} style={{ width: 150 }} onPress={bas} activeOpacity={0.85}>
               <View style={s.yatayKapak}>
-                {kapak ? (
-                  <Image source={{ uri: kapak }} style={{ width: "100%", height: "100%" }} />
-                ) : (
-                  <Text style={s.kartHarf}>{baslik.name?.[0]?.toUpperCase()}</Text>
-                )}
+                <Kapak baslik={baslik} harf={30} />
               </View>
               <Text style={s.kartAd} numberOfLines={1}>
                 {baslik.name}

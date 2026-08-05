@@ -429,14 +429,20 @@ function DevamRafi({ ogeler, oynat }) {
                   borderRadius: 8,
                   overflow: "hidden",
                   position: "relative",
-                  background: t.surface2,
+                  background: `linear-gradient(135deg, hsl(${adTonu(baslik.name || "?")}, 45%, 24%), hsl(${adTonu(baslik.name || "?")}, 52%, 13%))`,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
                 <span
-                  style={{ fontFamily: t.display, fontWeight: 800, fontSize: 34, color: t.line }}
+                  style={{
+                    fontFamily: t.display,
+                    fontWeight: 800,
+                    fontSize: 54,
+                    color: `hsl(${adTonu(baslik.name || "?")}, 58%, 52%)`,
+                    opacity: 0.45,
+                  }}
                 >
                   {baslik.name?.[0]?.toUpperCase()}
                 </span>
@@ -500,8 +506,17 @@ function Raf({ raf, ac }) {
   );
 }
 
+// Başlık adından belirlenimci ton (0-359) — kapak yokken her başlığa ayrı temalı
+// poster rengi. Gerçek kapak (cf_uid) gelince img bunun üstünü örter.
+function adTonu(ad = "?") {
+  let h = 0;
+  for (let i = 0; i < ad.length; i++) h = (h * 31 + ad.charCodeAt(i)) % 360;
+  return h;
+}
+
 function Kart({ kart, ac }) {
   const { s } = useLang();
+  const ton = adTonu(kart.ad || "?");
   return (
     <div
       className="kart"
@@ -514,15 +529,23 @@ function Kart({ kart, ac }) {
           borderRadius: 8,
           overflow: "hidden",
           position: "relative",
-          background: t.surface2,
+          background: `linear-gradient(135deg, hsl(${ton}, 45%, 24%), hsl(${ton}, 52%, 13%))`,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        {/* Harf her zaman altta durur; kapak yüklenirse üstünü örter,
-            yüklenemezse (kırık görsel) kendini gizler ve harf görünür */}
-        <span style={{ fontFamily: t.display, fontWeight: 800, fontSize: 34, color: t.line }}>
+        {/* Temalı poster harfi altta durur; kapak yüklenirse üstünü örter,
+            yüklenemezse (kırık görsel) kendini gizler ve poster görünür */}
+        <span
+          style={{
+            fontFamily: t.display,
+            fontWeight: 800,
+            fontSize: 54,
+            color: `hsl(${ton}, 58%, 52%)`,
+            opacity: 0.45,
+          }}
+        >
           {kart.ad?.[0]?.toUpperCase()}
         </span>
         {kart.kapak && (
@@ -618,7 +641,7 @@ function Detay({ id, user, oynat, geri }) {
           justifyContent: "space-between",
           background: backdrop
             ? `linear-gradient(to top, ${t.bg} 6%, rgba(10,10,11,0.55) 55%, rgba(10,10,11,0.2) 100%), url(${backdrop}) center 30%/cover`
-            : `linear-gradient(to top, ${t.bg}, ${t.surface2})`,
+            : `linear-gradient(to top, ${t.bg} 8%, hsl(${adTonu(baslik.name || "?")}, 42%, 16%) 100%)`,
         }}
       >
         <div style={{ padding: `20px ${t.pad} 0` }}>
