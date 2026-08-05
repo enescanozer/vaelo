@@ -36,7 +36,7 @@ workflows:
     max_build_duration: 60
     environment:
       node: 20.11.0
-      xcode: latest
+      xcode: 16.2          # "latest" yerine sabit sürüm — fmt/consteval hatası Xcode 26.4'te
       cocoapods: default
     scripts:
       - name: Bağımlılıkları kur
@@ -47,6 +47,11 @@ workflows:
         script: |
           cd mobil
           npx expo prebuild --platform ios --clean --no-install
+      - name: Podfile patch kontrolü (debug)
+        script: |
+          cd mobil/ios
+          echo "----- Podfile içinde FMT_USE_CONSTEVAL / CLANG_CXX_LANGUAGE_STANDARD aranıyor -----"
+          grep -A 3 -i "fmt" Podfile || echo "UYARI: Podfile'da fmt ile ilgili patch bulunamadı!"
       - name: CocoaPods kur
         script: |
           cd mobil/ios
