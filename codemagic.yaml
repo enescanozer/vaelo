@@ -1,6 +1,6 @@
 # Codemagic CI/CD — Vaelo mobil (Expo SDK 52, managed workflow)
-#   Uygulama repo kökünün `mobil/` alt klasöründedir; her betik oraya cd eder.
-#   Managed workflow olduğu için native klasör yok → her build `expo prebuild` ile üretir.
+# Uygulama repo kökünün `mobil/` alt klasöründedir; her betik oraya cd eder.
+# Managed workflow olduğu için native klasör yok → her build `expo prebuild` ile üretir.
 #
 # İki test çıktısı (ikisi de ücretsiz katmana sığar, ikisi de imza/Apple hesabı GEREKTİRMEZ):
 #   1) android-test  → Linux runner → kurulabilir debug APK
@@ -81,11 +81,15 @@ workflows:
             CODE_SIGNING_ALLOWED=NO | xcpretty || true
       - name: .app'i zip'le (Appetize için)
         script: |
-          cd mobil/ios/build/Build/Products/Release-iphonesimulator
-          APP=$(ls -d *.app | head -1)
-          zip -r vaelo-sim.zip "$APP"
+          APP_PATH=$(find mobil/ios/build -name "*.app" -type d | head -n 1)
+          if [ -n "$APP_PATH" ]; then
+            cd "$(dirname "$APP_PATH")"
+            zip -r $CM_BUILD_DIR/vaelo-sim.zip "$(basename "$APP_PATH")"
+          else
+            echo "HATA: .app dosyası bulunamadı!" && exit 1
+          fi
     artifacts:
-      - mobil/ios/build/Build/Products/Release-iphonesimulator/*.zip
+      - "*.zip"
     publishing:
       email:
         recipients:
@@ -96,15 +100,13 @@ workflows:
 
   # ————————————————————————————————————————————————————————————————
   # 3) (İLERİDE) iOS — imzalı .ipa (TestFlight / App Store)
-  #    GEREKLİ: Apple Developer hesabı ($99/yıl). Codemagic'te "Team integrations →
-  #    App Store Connect" ile API anahtarını bağla; aşağıdaki grubu doldur.
   # ————————————————————————————————————————————————————————————————
   # ios-release:
   #   name: Vaelo iOS (imzalı .ipa)
   #   instance_type: mac_mini_m2
   #   max_build_duration: 90
   #   integrations:
-  #     app_store_connect: Vaelo ASC Key   # Codemagic UI'da tanımlanan anahtar adı
+  #     app_store_connect: Vaelo ASC Key
   #   environment:
   #     node: 20.11.0
   #     xcode: latest
@@ -135,8 +137,6 @@ workflows:
 
   # ————————————————————————————————————————————————————————————————
   # 4) (İLERİDE) ANDROID — imzalı release APK/AAB (Play Console)
-  #    GEREKLİ: keystore. Codemagic UI → "Code signing identities → Android keystores"
-  #    ile yükle; reference name'i aşağıya yaz (android_signing).
   # ————————————————————————————————————————————————————————————————
   # android-release:
   #   name: Vaelo Android (imzalı AAB)
@@ -145,7 +145,7 @@ workflows:
   #   environment:
   #     node: 20.11.0
   #     android_signing:
-  #       - vaelo_keystore        # Codemagic UI'daki keystore reference name
+  #       - vaelo_keystore
   #     vars:
   #       PACKAGE_NAME: "app.vaelo.mobil"
   #   scripts:
