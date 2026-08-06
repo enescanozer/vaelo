@@ -1,0 +1,10 @@
+# Cloudflare Pages başlık kuralları (Vite public/ → dist/ köküne kopyalar).
+# index.html ASLA uzun süre önbelleklenmesin — yoksa yeni deploy'da tarayıcı eski
+# HTML'i (eski/yanlış script referansı) tutup kör ekran verebilir. Hash'li varlıklar
+# ise içerikle değiştiği için sonsuza dek immutable önbeklenebilir.
+
+/index.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

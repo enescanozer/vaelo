@@ -16,16 +16,18 @@ const kacir = (metin) =>
     .replace(/"/g, "&quot;");
 
 export async function onRequest(context) {
-  const { request, env, next } = context;
+  const { request, env } = context;
   const url = new URL(request.url);
   const baslikId = url.searchParams.get("b");
 
-  // Yalnızca ?b='li sayfa (HTML) istekleri; varlıklar ve diğer her şey statik akışa
+  // Yalnızca ?b='li sayfa (HTML) istekleri; varlıklar ve diğer her şey statik akışa.
+  // next() yerine ASSETS binding'i doğrudan çağırılır — catch-all function'da next()
+  // rota belirsizliği yaratıp .js varlıklarına index.html döndürebiliyordu.
   if (!baslikId || request.method !== "GET" || url.pathname.includes(".")) {
-    return next();
+    return env.ASSETS.fetch(request);
   }
 
-  const cevap = await next(); // statik index.html
+  const cevap = await env.ASSETS.fetch(request); // statik index.html
   const icerikTipi = cevap.headers.get("content-type") ?? "";
   if (!icerikTipi.includes("text/html")) return cevap;
 

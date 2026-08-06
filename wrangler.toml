@@ -1,0 +1,7 @@
+# Cloudflare Pages yapılandırması.
+# pages_build_output_dir çıktı dizinini KESİNLEŞTİRİR: panelde yanlış ayarlıysa bile
+# (ör. kök) Pages artık repo kökünü (dev index.html + /src kaynağı → kör ekran) DEĞİL,
+# derlenmiş dist/'i servis eder. Kök-neden buydu; bu satır tekrarını önler.
+name = "vaelo"
+pages_build_output_dir = "dist"
+compatibility_date = "2024-11-01"
