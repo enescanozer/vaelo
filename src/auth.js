@@ -30,11 +30,20 @@ export function signInWithGoogle() {
   });
 }
 
-// Şifre sıfırlama e-postası gönderir (Supabase'in yerleşik akışı; ayrı e-posta
-// servisi gerekmez). Bağlantı bu siteye döner; supabase-js URL'deki recovery
-// token'ını yakalayıp PASSWORD_RECOVERY olayını tetikler → yeni şifre ekranı açılır.
-export function sifreSifirla(email) {
-  return supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+// Şifre sıfırlama e-postası gönderir. Bağlantı bu siteye döner; supabase-js URL'deki
+// recovery token'ını yakalayıp PASSWORD_RECOVERY olayını tetikler → yeni şifre ekranı.
+// NOT (opsiyon adı): resetPasswordForEmail YALNIZCA `redirectTo`'yu okur — `emailRedirectTo`
+// bu çağrıda YOK SAYILIR (o signUp/OTP içindir). Doğru anahtar burada kullanılıyor.
+// Debug: isteği ve Supabase yanıtını konsola basar. resetPasswordForEmail güvenlik gereği
+// (kullanıcı sayımını engellemek için) e-posta gerçekten gitmese de error=null döndürebilir;
+// yani "error yok" teslim garantisi DEĞİLDİR — gerçek teslim Supabase Auth loglarından görülür.
+export async function sifreSifirla(email) {
+  const redirectTo = window.location.origin;
+  console.log("[reset] resetPasswordForEmail →", { email, redirectTo });
+  const { data, error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+  console.log("[reset] Supabase yanıtı ←", { data, error });
+  if (error) console.error("[reset] hata:", error.status, error.message);
+  return { data, error };
 }
 
 // Recovery oturumunda yeni şifreyi kaydeder (updateUser). Başarılıysa kullanıcı
