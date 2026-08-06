@@ -1,7 +1,12 @@
 // Kimlik: giriş/kayıt/çıkış + oturumu izleyen useAuth() hook'u (web'deki auth.js ile
 // aynı örüntü, mobil sürüm). Oturum supabase-js tarafından AsyncStorage'da tutulur.
 import { useEffect, useState } from "react";
+import * as WebBrowser from "expo-web-browser";
+import * as AuthSession from "expo-auth-session";
 import { supabase } from "./supabaseClient";
+
+// Tarayıcı auth oturumundan dönünce bekleyen akışı kapat (standart Expo çağrısı)
+WebBrowser.maybeCompleteAuthSession();
 
 export function signIn(email, sifre) {
   return supabase.auth.signInWithPassword({ email, password: sifre });
@@ -17,6 +22,54 @@ export function signUp(email, sifre, gorunenAd) {
 
 export function signOut() {
   return supabase.auth.signOut();
+}
+
+// Redirect URL'indeki (implicit → #hash, PKCE → ?query) parametreleri ayrıştır
+function urlParametreleri(url) {
+  const sonuc = {};
+  const idx = [url.indexOf("?"), url.indexOf("#")].filter((i) => i >= 0).sort((a, b) => a - b)[0];
+  if (idx == null) return sonuc;
+  // ? ve # sonrasını & ile birleştirip tara (hem implicit hash hem pkce query yakalanır)
+  const ham = url.slice(idx + 1).replace(/[?#]/g, "&");
+  for (const ikili of ham.split("&")) {
+    if (!ikili) continue;
+    const esit = ikili.indexOf("=");
+    const k = esit >= 0 ? ikili.slice(0, esit) : ikili;
+    const v = esit >= 0 ? ikili.slice(esit + 1) : "";
+    sonuc[decodeURIComponent(k)] = decodeURIComponent(v);
+  }
+  return sonuc;
+}
+
+// Google ile giriş (Expo): Supabase OAuth URL'ini alır, sistem tarayıcısında açar,
+// dönüşteki oturumu (token ya da code) supabase-js'e yazar. Deep link: vaelo://auth-callback.
+// ÇALIŞMASI İÇİN: Supabase'te Google sağlayıcısı açık + redirect URL allowlist'inde
+// "vaelo://auth-callback" (ve web origin) kayıtlı olmalı.
+export async function signInWithGoogle() {
+  const redirectUrl = AuthSession.makeRedirectUri({ scheme: "vaelo", path: "auth-callback" });
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: redirectUrl, skipBrowserRedirect: true },
+  });
+  if (error) return { error };
+  if (!data?.url) return { error: new Error("OAuth URL alınamadı") };
+
+  const sonuc = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+  if (sonuc.type !== "success" || !sonuc.url) return { error: null, iptal: true };
+
+  const p = urlParametreleri(sonuc.url);
+  if (p.access_token && p.refresh_token) {
+    const { error: setHata } = await supabase.auth.setSession({
+      access_token: p.access_token,
+      refresh_token: p.refresh_token,
+    });
+    return { error: setHata };
+  }
+  if (p.code) {
+    const { error: exHata } = await supabase.auth.exchangeCodeForSession(p.code);
+    return { error: exHata };
+  }
+  return { error: new Error("Oturum bilgisi alınamadı") };
 }
 
 // Oturum durumu — açılışta AsyncStorage'dan yüklenir, değişimleri dinler

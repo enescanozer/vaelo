@@ -30,6 +30,19 @@ export function signInWithGoogle() {
   });
 }
 
+// Şifre sıfırlama e-postası gönderir (Supabase'in yerleşik akışı; ayrı e-posta
+// servisi gerekmez). Bağlantı bu siteye döner; supabase-js URL'deki recovery
+// token'ını yakalayıp PASSWORD_RECOVERY olayını tetikler → yeni şifre ekranı açılır.
+export function sifreSifirla(email) {
+  return supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+}
+
+// Recovery oturumunda yeni şifreyi kaydeder (updateUser). Başarılıysa kullanıcı
+// artık o yeni şifreyle girmiş olur.
+export function sifreGuncelle(yeniSifre) {
+  return supabase.auth.updateUser({ password: yeniSifre });
+}
+
 // Oturum (session) + profil (profiles satırı) durumu
 export function useAuth() {
   const [session, setSession] = useState(null);

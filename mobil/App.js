@@ -44,7 +44,7 @@ import {
   artBildir,
   kayitPushToken,
 } from "./api";
-import { useAuth, signIn, signUp, signOut } from "./auth";
+import { useAuth, signIn, signUp, signOut, signInWithGoogle } from "./auth";
 import { METINLER } from "./i18n";
 
 // Tasarım token'ları — web'deki theme.js ile aynı değerler
@@ -281,6 +281,17 @@ function AuthModal({ d, kapat }) {
     else kapat(); // giriş başarılı → onAuthStateChange kullanıcıyı günceller
   }
 
+  async function googleGiris() {
+    setHata(null);
+    setMesaj(null);
+    setBekliyor(true);
+    const { error, iptal } = await signInWithGoogle();
+    setBekliyor(false);
+    if (iptal) return; // kullanıcı tarayıcıyı kapattı
+    if (error) return setHata(d.googleHata(error.message));
+    kapat(); // başarılı → onAuthStateChange kullanıcıyı günceller
+  }
+
   return (
     <Modal transparent animationType="fade" onRequestClose={kapat}>
       <KeyboardAvoidingView
@@ -327,6 +338,29 @@ function AuthModal({ d, kapat }) {
             disabled={bekliyor}
           >
             <Text style={s.izleYazi}>{bekliyor ? d.bekle : kayit ? d.kayitOl : d.girisYap}</Text>
+          </TouchableOpacity>
+
+          {/* veya + Google ile devam et */}
+          <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 16 }}>
+            <View style={{ flex: 1, height: 1, backgroundColor: t.line }} />
+            <Text style={{ color: t.dim, fontSize: 12, marginHorizontal: 12 }}>{d.veya}</Text>
+            <View style={{ flex: 1, height: 1, backgroundColor: t.line }} />
+          </View>
+          <TouchableOpacity
+            onPress={googleGiris}
+            disabled={bekliyor}
+            style={{
+              alignSelf: "stretch",
+              alignItems: "center",
+              paddingVertical: 12,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: t.line,
+              backgroundColor: t.surface2,
+              opacity: bekliyor ? 0.6 : 1,
+            }}
+          >
+            <Text style={{ color: t.text, fontWeight: "600", fontSize: 14 }}>{d.googleIle}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => setKayit(!kayit)} style={{ marginTop: 14, alignItems: "center" }}>

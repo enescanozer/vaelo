@@ -2,6 +2,7 @@
   "expo": {
     "name": "Vaelo",
     "slug": "vaelo",
+    "scheme": "vaelo",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",

@@ -20,6 +20,7 @@ const AdminPanel = lazy(() => import("./AdminPanel"));
 const AnalyticsPanel = lazy(() => import("./AnalyticsPanel"));
 import Profile from "./Profile";
 import AyarlarModal from "./AyarlarModal";
+import SifreYenile from "./SifreYenile.jsx";
 
 const SEKMELER = [
   { id: "kesfet" },
@@ -39,6 +40,7 @@ export default function App() {
   const [girisAcik, setGirisAcik] = useState(false);
   const [profilAcik, setProfilAcik] = useState(false);
   const [ayarlarAcik, setAyarlarAcik] = useState(false);
+  const [sifreYenileAcik, setSifreYenileAcik] = useState(false);
   const [dogrulamaGonderildi, setDogrulamaGonderildi] = useState(false);
   const [bildirimler, setBildirimler] = useState([]);
   const [zilAcik, setZilAcik] = useState(false);
@@ -97,6 +99,16 @@ export default function App() {
   // Yarışma sekmesi penceresi (aktif VEYA bitiş+2 hafta) — bir kez yüklenir
   useEffect(() => {
     getYarismaGorunur().then(setYarismaGorunur).catch(() => {});
+  }, []);
+
+  // Şifre sıfırlama: e-postadaki bağlantı bu siteye recovery token'ıyla döner;
+  // supabase-js token'ı URL'den yakalayıp PASSWORD_RECOVERY olayını tetikler →
+  // "yeni şifre belirle" modalını aç.
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((olay) => {
+      if (olay === "PASSWORD_RECOVERY") setSifreYenileAcik(true);
+    });
+    return () => data.subscription.unsubscribe();
   }, []);
 
   async function zilAcKapat() {
@@ -474,6 +486,17 @@ export default function App() {
         />
       )}
       {ayarlarAcik && <AyarlarModal kapat={() => setAyarlarAcik(false)} />}
+      {sifreYenileAcik && (
+        <SifreYenile
+          kapat={() => {
+            setSifreYenileAcik(false);
+            // Recovery token'ı URL'den temizle (yenilemede tekrar tetiklenmesin)
+            if (window.location.hash) {
+              window.history.replaceState(null, "", window.location.pathname + window.location.search);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
