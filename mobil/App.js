@@ -44,7 +44,16 @@ import {
   artBildir,
   kayitPushToken,
 } from "./api";
-import { useAuth, signIn, signUp, signOut, signInWithGoogle } from "./auth";
+import {
+  useAuth,
+  signIn,
+  signUp,
+  signOut,
+  signInWithGoogle,
+  sifreSifirla,
+  sifreGuncelle,
+  recoveryOturumuKur,
+} from "./auth";
 import { METINLER } from "./i18n";
 
 // Tasarım token'ları — web'deki theme.js ile aynı değerler
@@ -94,6 +103,7 @@ export default function App() {
   const [ayarlar, setAyarlar] = useState({ altyaziAcik: false, altyaziDil: "" });
   const [girisAcik, setGirisAcik] = useState(false);
   const [ayarlarAcik, setAyarlarAcik] = useState(false);
+  const [sifreYenileAcik, setSifreYenileAcik] = useState(false);
   const { user } = useAuth();
   const d = METINLER[dil];
 
@@ -123,6 +133,20 @@ export default function App() {
   useEffect(() => {
     if (user) kayitPushToken(user.id);
   }, [user?.id]);
+
+  // Şifre sıfırlama deep link'i (vaelo://reset-password#...): mobilde detectSessionInUrl
+  // kapalı olduğundan token'ı elle yakalayıp recovery oturumu kurar → "yeni şifre" modalı.
+  // (Google auth-callback'i openAuthSessionAsync kendi içinde tükettiği için buraya düşmez.)
+  useEffect(() => {
+    async function eleAl(url) {
+      if (!url || !url.includes("reset-password")) return;
+      const oldu = await recoveryOturumuKur(url);
+      if (oldu) setSifreYenileAcik(true);
+    }
+    Linking.getInitialURL().then(eleAl).catch(() => {}); // uygulama kapalıyken açılış
+    const abone = Linking.addEventListener("url", (e) => eleAl(e.url)); // açıkken
+    return () => abone.remove();
+  }, []);
 
   const oynat = (video, baslik) => setGorunum({ tip: "oynat", video, baslik });
 
@@ -180,7 +204,56 @@ export default function App() {
           kapat={() => setAyarlarAcik(false)}
         />
       )}
+      {sifreYenileAcik && <SifreYenileModal d={d} kapat={() => setSifreYenileAcik(false)} />}
     </SafeAreaView>
+  );
+}
+
+// ————— Yeni şifre belirle modalı (şifre sıfırlama bağlantısından dönünce) —————
+function SifreYenileModal({ d, kapat }) {
+  const [sifre, setSifre] = useState("");
+  const [hata, setHata] = useState(null);
+  const [mesaj, setMesaj] = useState(null);
+  const [bekliyor, setBekliyor] = useState(false);
+
+  async function gonder() {
+    setHata(null);
+    setBekliyor(true);
+    const { error } = await sifreGuncelle(sifre);
+    setBekliyor(false);
+    if (error) return setHata(error.message);
+    setMesaj(d.sifreGuncellendi);
+    setTimeout(kapat, 1500); // kullanıcı mesajı görsün; artık yeni şifreyle girmiş durumda
+  }
+
+  return (
+    <Modal transparent animationType="fade" onRequestClose={kapat}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={s.modalArka}
+      >
+        <View style={s.modalKart}>
+          <Text style={s.modalBaslik}>{d.yeniSifreBaslik}</Text>
+          <TextInput
+            style={[s.modalAlan, { marginTop: 16 }]}
+            placeholder={d.yeniSifre}
+            placeholderTextColor={t.dim}
+            secureTextEntry
+            value={sifre}
+            onChangeText={setSifre}
+          />
+          {hata && <Text style={{ color: t.danger, fontSize: 13, marginBottom: 10 }}>{hata}</Text>}
+          {mesaj && <Text style={{ color: t.text, fontSize: 13, marginBottom: 10 }}>{mesaj}</Text>}
+          <TouchableOpacity
+            style={[s.izleDugme, { alignSelf: "stretch", alignItems: "center", opacity: bekliyor ? 0.6 : 1 }]}
+            onPress={gonder}
+            disabled={bekliyor}
+          >
+            <Text style={s.izleYazi}>{bekliyor ? d.bekle : d.sifreKaydet}</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }
 
@@ -263,6 +336,7 @@ function AyarlarModal({ d, dil, setDil, ayarlar, setAyarlar, kapat }) {
 // ————— Giriş / kayıt modalı —————
 function AuthModal({ d, kapat }) {
   const [kayit, setKayit] = useState(false);
+  const [sifirla, setSifirla] = useState(false); // şifre sıfırlama modu
   const [ad, setAd] = useState("");
   const [email, setEmail] = useState("");
   const [sifre, setSifre] = useState("");
@@ -274,9 +348,21 @@ function AuthModal({ d, kapat }) {
     setHata(null);
     setMesaj(null);
     setBekliyor(true);
+    // Şifre sıfırlama: yalnız e-posta; Supabase bağlantı e-postası yollar
+    if (sifirla) {
+      const { error } = await sifreSifirla(email);
+      setBekliyor(false);
+      if (error) return setHata(error.message);
+      return setMesaj(d.sifirlaGitti);
+    }
     const { error } = kayit ? await signUp(email, sifre, ad) : await signIn(email, sifre);
     setBekliyor(false);
-    if (error) return setHata(error.message);
+    if (error) {
+      // Google ile açılmış (şifresiz) hesapta e-posta+şifre denemesi de bu jenerik hatayı
+      // verir — daha açıklayıcı mesaja çevir (Supabase iki durumu güvenlik için ayırt etmez).
+      if (!kayit && /invalid login/i.test(error.message)) return setHata(d.girisGecersiz);
+      return setHata(error.message);
+    }
     if (kayit) setMesaj(d.kayitAlindi);
     else kapat(); // giriş başarılı → onAuthStateChange kullanıcıyı günceller
   }
@@ -299,8 +385,8 @@ function AuthModal({ d, kapat }) {
         style={s.modalArka}
       >
         <View style={s.modalKart}>
-          <Text style={s.modalBaslik}>{kayit ? d.kayitBaslik : d.girisBaslik}</Text>
-          <Text style={[s.dim, { marginBottom: 16 }]}>{d.girisAlt}</Text>
+          <Text style={s.modalBaslik}>{sifirla ? d.sifirlaBaslik : kayit ? d.kayitBaslik : d.girisBaslik}</Text>
+          <Text style={[s.dim, { marginBottom: 16 }]}>{sifirla ? d.sifirlaAlt : d.girisAlt}</Text>
 
           {kayit && (
             <TextInput
@@ -320,14 +406,16 @@ function AuthModal({ d, kapat }) {
             value={email}
             onChangeText={setEmail}
           />
-          <TextInput
-            style={s.modalAlan}
-            placeholder={d.sifre}
-            placeholderTextColor={t.dim}
-            secureTextEntry
-            value={sifre}
-            onChangeText={setSifre}
-          />
+          {!sifirla && (
+            <TextInput
+              style={s.modalAlan}
+              placeholder={d.sifre}
+              placeholderTextColor={t.dim}
+              secureTextEntry
+              value={sifre}
+              onChangeText={setSifre}
+            />
+          )}
 
           {hata && <Text style={{ color: t.danger, fontSize: 13, marginBottom: 10 }}>{hata}</Text>}
           {mesaj && <Text style={{ color: t.text, fontSize: 13, marginBottom: 10 }}>{mesaj}</Text>}
@@ -337,35 +425,68 @@ function AuthModal({ d, kapat }) {
             onPress={gonder}
             disabled={bekliyor}
           >
-            <Text style={s.izleYazi}>{bekliyor ? d.bekle : kayit ? d.kayitOl : d.girisYap}</Text>
+            <Text style={s.izleYazi}>
+              {bekliyor ? d.bekle : sifirla ? d.sifirlaGonder : kayit ? d.kayitOl : d.girisYap}
+            </Text>
           </TouchableOpacity>
 
-          {/* veya + Google ile devam et */}
-          <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 16 }}>
-            <View style={{ flex: 1, height: 1, backgroundColor: t.line }} />
-            <Text style={{ color: t.dim, fontSize: 12, marginHorizontal: 12 }}>{d.veya}</Text>
-            <View style={{ flex: 1, height: 1, backgroundColor: t.line }} />
-          </View>
-          <TouchableOpacity
-            onPress={googleGiris}
-            disabled={bekliyor}
-            style={{
-              alignSelf: "stretch",
-              alignItems: "center",
-              paddingVertical: 12,
-              borderRadius: 8,
-              borderWidth: 1,
-              borderColor: t.line,
-              backgroundColor: t.surface2,
-              opacity: bekliyor ? 0.6 : 1,
-            }}
-          >
-            <Text style={{ color: t.text, fontWeight: "600", fontSize: 14 }}>{d.googleIle}</Text>
-          </TouchableOpacity>
+          {/* Şifremi unuttum — yalnız giriş modunda */}
+          {!sifirla && !kayit && (
+            <TouchableOpacity
+              onPress={() => {
+                setSifirla(true);
+                setHata(null);
+                setMesaj(null);
+              }}
+              style={{ marginTop: 12, alignItems: "center" }}
+            >
+              <Text style={[s.dim, { textDecorationLine: "underline" }]}>{d.sifremiUnuttum}</Text>
+            </TouchableOpacity>
+          )}
 
-          <TouchableOpacity onPress={() => setKayit(!kayit)} style={{ marginTop: 14, alignItems: "center" }}>
-            <Text style={[s.dim, { textDecorationLine: "underline" }]}>{d.hesapGecis(kayit)}</Text>
-          </TouchableOpacity>
+          {/* veya + Google ile devam et — sıfırlama modunda gizli */}
+          {!sifirla && (
+            <>
+              <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 16 }}>
+                <View style={{ flex: 1, height: 1, backgroundColor: t.line }} />
+                <Text style={{ color: t.dim, fontSize: 12, marginHorizontal: 12 }}>{d.veya}</Text>
+                <View style={{ flex: 1, height: 1, backgroundColor: t.line }} />
+              </View>
+              <TouchableOpacity
+                onPress={googleGiris}
+                disabled={bekliyor}
+                style={{
+                  alignSelf: "stretch",
+                  alignItems: "center",
+                  paddingVertical: 12,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: t.line,
+                  backgroundColor: t.surface2,
+                  opacity: bekliyor ? 0.6 : 1,
+                }}
+              >
+                <Text style={{ color: t.text, fontWeight: "600", fontSize: 14 }}>{d.googleIle}</Text>
+              </TouchableOpacity>
+            </>
+          )}
+
+          {sifirla ? (
+            <TouchableOpacity
+              onPress={() => {
+                setSifirla(false);
+                setHata(null);
+                setMesaj(null);
+              }}
+              style={{ marginTop: 14, alignItems: "center" }}
+            >
+              <Text style={[s.dim, { textDecorationLine: "underline" }]}>{d.giriseDon}</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={() => setKayit(!kayit)} style={{ marginTop: 14, alignItems: "center" }}>
+              <Text style={[s.dim, { textDecorationLine: "underline" }]}>{d.hesapGecis(kayit)}</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity onPress={kapat} style={{ marginTop: 14, alignItems: "center" }}>
             <Text style={s.dim}>✕</Text>
           </TouchableOpacity>

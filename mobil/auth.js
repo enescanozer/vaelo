@@ -72,6 +72,40 @@ export async function signInWithGoogle() {
   return { error: new Error("Oturum bilgisi alınamadı") };
 }
 
+// ————— Şifre sıfırlama (mobil) —————
+// Sıfırlama e-postası gönderir (Supabase yerleşik akışı). Bağlantı vaelo://reset-password
+// olarak döner; detectSessionInUrl mobilde kapalı olduğundan App.js deep-link'i elle yakalar.
+// ÇALIŞMASI İÇİN: Supabase redirect allowlist'inde "vaelo://reset-password" kayıtlı olmalı.
+export function sifreSifirla(email) {
+  const redirectUrl = AuthSession.makeRedirectUri({ scheme: "vaelo", path: "reset-password" });
+  return supabase.auth.resetPasswordForEmail(email, { redirectTo: redirectUrl });
+}
+
+// Recovery oturumunda yeni şifreyi kaydeder. Google ile açılmış (şifresiz) hesapta da
+// çalışır: aynı e-postaya sıfırlama gider → updateUser AYNI kullanıcıya şifre yazar
+// (yeni/yinelenen hesap OLUŞMAZ). Böylece kullanıcı sonrasında e-posta+şifre ile de girebilir.
+export function sifreGuncelle(yeniSifre) {
+  return supabase.auth.updateUser({ password: yeniSifre });
+}
+
+// reset-password deep link'inden recovery oturumunu kurar (token ya da code).
+// Başarılıysa true → App.js "yeni şifre belirle" modalını açar.
+export async function recoveryOturumuKur(url) {
+  const p = urlParametreleri(url);
+  if (p.access_token && p.refresh_token) {
+    const { error } = await supabase.auth.setSession({
+      access_token: p.access_token,
+      refresh_token: p.refresh_token,
+    });
+    return !error;
+  }
+  if (p.code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(p.code);
+    return !error;
+  }
+  return false;
+}
+
 // Oturum durumu — açılışta AsyncStorage'dan yüklenir, değişimleri dinler
 export function useAuth() {
   const [user, setUser] = useState(null);
