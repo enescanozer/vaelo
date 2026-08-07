@@ -24,6 +24,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { StatusBar } from "expo-status-bar";
 import { WebView } from "react-native-webview";
 import * as ImagePicker from "expo-image-picker";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   getCatalog,
   getTitle,
@@ -64,12 +65,26 @@ const t = {
   line: "#222226",
   text: "#ECEEE9",
   dim: "#8C8F88",
-  accent: "#FF4DBD", // marka pembe (eski lime #CDFF4A kaldırıldı). Gerçek gradient dolgu
-  // için expo-linear-gradient gerekir (ayrı adım) — şimdilik katı marka rengi.
+  accent: "#FF4DBD", // marka pembe — kenarlık/metin/nokta/halka (katı). Dolgular <Gradyan/>.
   danger: "#E2574C",
 };
 
 const AYAR_ANAHTAR = "latent_mobil_ayarlar";
+
+// Marka gradient — RN'de CSS gradient yok; buton/çip kutularının mutlak-dolgu arka planı
+// olarak kullanılır (kap overflow:hidden + position relative). accent (katı pembe) kenarlık/
+// metin/nokta için kalır; dolgular bu gradient'i alır (masaüstüyle aynı marka).
+const MARKA_GRADIENT = ["#FF7A45", "#FF4DBD", "#A855F7"];
+function Gradyan() {
+  return (
+    <LinearGradient
+      colors={MARKA_GRADIENT}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={StyleSheet.absoluteFill}
+    />
+  );
+}
 
 // ————— STEP 1: ücretsiz oynatma doğrulaması (geçici) —————
 // Cloudflare Stream'e para harcamadan Watch→oynatıcı→gerçek oynatma zincirini kanıtlamak
@@ -250,6 +265,7 @@ function SifreYenileModal({ d, kapat }) {
             onPress={gonder}
             disabled={bekliyor}
           >
+            <Gradyan />
             <Text style={s.izleYazi}>{bekliyor ? d.bekle : d.sifreKaydet}</Text>
           </TouchableOpacity>
         </View>
@@ -326,6 +342,7 @@ function AyarlarModal({ d, dil, setDil, ayarlar, setAyarlar, kapat }) {
             style={[s.izleDugme, { alignSelf: "stretch", alignItems: "center", marginTop: 16 }]}
             onPress={kapat}
           >
+            <Gradyan />
             <Text style={s.izleYazi}>{d.kapat}</Text>
           </TouchableOpacity>
         </View>
@@ -426,6 +443,7 @@ function AuthModal({ d, kapat }) {
             onPress={gonder}
             disabled={bekliyor}
           >
+            <Gradyan />
             <Text style={s.izleYazi}>
               {bekliyor ? d.bekle : sifirla ? d.sifirlaGonder : kayit ? d.kayitOl : d.girisYap}
             </Text>
@@ -621,7 +639,11 @@ function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac }) {
     >
       {/* Marka + dil anahtarı + giriş/çıkış */}
       <View style={s.ustSatir}>
-        <Text style={s.marka}>VAELO</Text>
+        <Image
+          source={require("./assets/vaelo_horizontal_lockup_transparent.png")}
+          style={{ height: 24, width: 77, resizeMode: "contain" }}
+          accessibilityLabel="Vaelo"
+        />
         <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
           <TouchableOpacity style={s.dilDugme} onPress={tabloAc}>
             <Text style={s.dilYazi}>{d.tablo.etiket}</Text>
@@ -726,7 +748,8 @@ function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac }) {
                     </Text>
                   )}
                   <View style={s.izleDugme}>
-                    <Text style={s.izleYazi}>{d.izle}</Text>
+                    <Gradyan />
+            <Text style={s.izleYazi}>{d.izle}</Text>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -877,6 +900,7 @@ function Detay({ d, id, user, girisAc, oynat, geri }) {
       <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         {!dizi && baslik.videos[0] && (
           <TouchableOpacity style={s.izleDugme} onPress={() => oynat(baslik.videos[0], baslik)}>
+            <Gradyan />
             <Text style={s.izleYazi}>{d.filmiIzle}</Text>
           </TouchableOpacity>
         )}
@@ -1032,6 +1056,7 @@ function Cip({ etiket, secili, sec }) {
       style={[s.cip, secili ? s.cipSecili : s.cipPasif]}
       activeOpacity={0.85}
     >
+      {secili && <Gradyan />}
       <Text style={[s.cipYazi, { color: secili ? "#0A0A0B" : t.dim }]}>{etiket}</Text>
     </TouchableOpacity>
   );
@@ -1141,7 +1166,8 @@ function ArtGonderim({ d, hafta, user, girisAc }) {
 
       {!user ? (
         <TouchableOpacity style={s.izleDugme} onPress={girisAc}>
-          <Text style={s.izleYazi}>{d.tablo.girisGerek}</Text>
+          <Gradyan />
+            <Text style={s.izleYazi}>{d.tablo.girisGerek}</Text>
         </TouchableOpacity>
       ) : benim ? (
         <View>
@@ -1188,6 +1214,7 @@ function ArtGonderim({ d, hafta, user, girisAc }) {
             disabled={!varlik || durum === "gonderiliyor"}
             onPress={gonder}
           >
+            <Gradyan />
             <Text style={s.izleYazi}>
               {durum === "gonderiliyor" ? d.tablo.gonderiliyor : d.tablo.gonder}
             </Text>
@@ -1233,7 +1260,8 @@ function ArtEleme({ d, hafta, user, girisAc }) {
       <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
         <Text style={s.rafBaslik}>{d.tablo.elemeBaslik}</Text>
         <TouchableOpacity style={s.izleDugme} onPress={girisAc}>
-          <Text style={s.izleYazi}>{d.tablo.girisGerek}</Text>
+          <Gradyan />
+            <Text style={s.izleYazi}>{d.tablo.girisGerek}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -1358,7 +1386,7 @@ const s = StyleSheet.create({
     paddingVertical: 4,
   },
   dilYazi: { color: t.dim, fontSize: 12, letterSpacing: 1 },
-  cip: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7 },
+  cip: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7, overflow: "hidden" },
   cipSecili: { backgroundColor: t.accent },
   cipPasif: { borderColor: t.line, borderWidth: 1 },
   cipYazi: { fontSize: 13, fontWeight: "600" },
@@ -1444,6 +1472,7 @@ const s = StyleSheet.create({
     paddingVertical: 11,
     marginTop: 10,
     alignSelf: "flex-start",
+    overflow: "hidden", // Gradyan (mutlak-dolgu) köşe yarıçapına kırpılsın
   },
   izleYazi: { color: "#0A0A0B", fontWeight: "700", fontSize: 14 },
   rafBaslik: {
