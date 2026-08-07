@@ -15,6 +15,12 @@
     />
     <meta property="og:type" content="website" />
     <meta name="theme-color" content="#0A0A0B" />
+    <!-- Vaelo marka ikonları (public/brand/) -->
+    <link rel="icon" href="/brand/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/brand/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/brand/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -86,7 +92,25 @@
     </style>
   </head>
   <body>
-    <div id="root"></div>
+    <!-- #root içindeki splash React mount olunca değiştirilir (ilk boyada marka) -->
+    <div id="root">
+      <div
+        style="
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #121212;
+        "
+      >
+        <!-- bg logo_full_dark.png'nin gömülü arka planıyla (#121212) EŞİT → dikişsiz -->
+        <img
+          src="/brand/logo_full_dark.png"
+          alt="Vaelo"
+          style="width: min(240px, 55vw); height: auto"
+        />
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

@@ -8,3 +8,8 @@
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+
+# Marka görselleri hash'siz sabit adlı → uzun önbellek, ama immutable DEĞİL
+# (ileride logo güncellenirse cache purge ile yenilenebilsin).
+/brand/*
+  Cache-Control: public, max-age=31536000
