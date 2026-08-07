@@ -7,3 +7,5 @@ supabase/.temp/
 supabase/.branches/
 mobil/.expo/
 mobil/.kontrol-cikti/
+# Marka kaynak klasörü — public/brand/'a kopyalandı (tek doğru yer orası)
+/icon/
