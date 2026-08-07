@@ -171,24 +171,15 @@ export default function App() {
             setSekme("kesfet");
             setAnaSinyal((n) => n + 1);
           }}
-          style={{ display: "flex", alignItems: "center", gap: 9, cursor: "pointer" }}
+          style={{ display: "flex", alignItems: "center", cursor: "pointer" }}
         >
-          {/* V-mark (beyaz, şeffaf) — her arka plan üzerinde çalışır */}
+          {/* Yatay lockup: gradient V ikon + "Vaelo" wordmark TEK görselde
+              (ayrı metin yok — V harfi = ikon) */}
           <img
-            src="/brand/icon_transparent_white.png"
+            src="/brand/vaelo_horizontal_lockup_transparent.png"
             alt="Vaelo"
-            style={{ height: 26, width: "auto", display: "block" }}
+            style={{ height: 34, width: "auto", display: "block" }}
           />
-          <span
-            style={{
-              fontFamily: t.display,
-              fontWeight: 800,
-              fontSize: 20,
-              letterSpacing: 2,
-            }}
-          >
-            VAELO
-          </span>
         </div>
 
         <nav style={{ display: "flex", gap: 24, flex: 1, overflowX: "auto" }}>

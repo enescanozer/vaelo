@@ -3,7 +3,7 @@
 export const METINLER = {
   en: {
     locale: "en-US",
-    belgeBasligi: "Vaelo — AI-made films & series",
+    belgeBasligi: "Vaelo",
     nav: {
       kesfet: "Discover",
       tablo: "Art",
@@ -321,7 +321,7 @@ export const METINLER = {
 
   ru: {
     locale: "ru-RU",
-    belgeBasligi: "Vaelo — фильмы и сериалы, созданные ИИ",
+    belgeBasligi: "Vaelo",
     nav: {
       kesfet: "Обзор",
       tablo: "Арт",
@@ -639,7 +639,7 @@ export const METINLER = {
 
   zh: {
     locale: "zh-CN",
-    belgeBasligi: "Vaelo — 由 AI 制作的电影和剧集",
+    belgeBasligi: "Vaelo",
     nav: {
       kesfet: "发现",
       tablo: "艺术",
@@ -957,7 +957,7 @@ export const METINLER = {
 
   ar: {
     locale: "ar",
-    belgeBasligi: "Vaelo — أفلام ومسلسلات من صنع الذكاء الاصطناعي",
+    belgeBasligi: "Vaelo",
     nav: {
       kesfet: "استكشاف",
       tablo: "فن",
@@ -1275,7 +1275,7 @@ export const METINLER = {
 
   tr: {
     locale: "tr-TR",
-    belgeBasligi: "Vaelo — Yapay zekâ yapımı film ve diziler",
+    belgeBasligi: "Vaelo",
     nav: {
       kesfet: "Keşfet",
       tablo: "Tablo",
@@ -1592,7 +1592,7 @@ export const METINLER = {
 
   es: {
     locale: "es-ES",
-    belgeBasligi: "Vaelo — Cine y series hechos con IA",
+    belgeBasligi: "Vaelo",
     nav: {
       kesfet: "Descubrir",
       tablo: "Arte",
@@ -1913,7 +1913,7 @@ export const METINLER = {
 
   de: {
     locale: "de-DE",
-    belgeBasligi: "Vaelo — KI-Filme & -Serien",
+    belgeBasligi: "Vaelo",
     nav: {
       kesfet: "Entdecken",
       tablo: "Kunst",
@@ -2237,7 +2237,7 @@ export const METINLER = {
 
   fr: {
     locale: "fr-FR",
-    belgeBasligi: "Vaelo — Films et séries créés par IA",
+    belgeBasligi: "Vaelo",
     nav: {
       kesfet: "Découvrir",
       tablo: "Art",
