@@ -143,7 +143,7 @@ export default function Profile({ user, profile, kapat, yenile }) {
             style={{
               flex: 1,
               padding: "12px 0",
-              background: t.accent,
+              background: t.gradient,
               color: "#0A0A0B",
               border: "none",
               borderRadius: 8,

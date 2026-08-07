@@ -282,7 +282,7 @@ function Eleme({ a, hafta, user, moderator, girisAc }) {
                 <button
                   style={{
                     ...s2.oyDugme,
-                    background: oyVerildi ? t.accent : "none",
+                    background: oyVerildi ? t.gradient : "none",
                     color: oyVerildi ? "#0A0A0B" : t.text,
                     borderColor: oyVerildi ? t.accent : t.line,
                   }}
@@ -383,7 +383,7 @@ function Sergi({ a, hafta, user, moderator, girisAc }) {
                   style={{
                     ...s2.oyDugme,
                     padding: "5px 12px",
-                    background: oyVerildi ? t.accent : "none",
+                    background: oyVerildi ? t.gradient : "none",
                     color: oyVerildi ? "#0A0A0B" : t.text,
                     borderColor: oyVerildi ? t.accent : t.line,
                   }}
@@ -503,7 +503,7 @@ function AdminDugme({ children, onClick, islemde, vurgu }) {
       onClick={onClick}
       disabled={islemde}
       style={{
-        background: vurgu ? t.accent : "none",
+        background: vurgu ? t.gradient : "none",
         color: vurgu ? "#0A0A0B" : t.text,
         border: vurgu ? "none" : `1px solid ${t.line}`,
         borderRadius: 8,
@@ -550,7 +550,7 @@ const s2 = {
   alt: { color: t.dim, fontSize: 14, margin: "0 0 20px", lineHeight: 1.5 },
   kutu: { maxWidth: 320 },
   anaDugme: {
-    background: t.accent,
+    background: t.gradient,
     color: "#0A0A0B",
     border: "none",
     borderRadius: 8,

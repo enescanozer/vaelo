@@ -64,7 +64,8 @@ const t = {
   line: "#222226",
   text: "#ECEEE9",
   dim: "#8C8F88",
-  accent: "#CDFF4A",
+  accent: "#FF4DBD", // marka pembe (eski lime #CDFF4A kaldırıldı). Gerçek gradient dolgu
+  // için expo-linear-gradient gerekir (ayrı adım) — şimdilik katı marka rengi.
   danger: "#E2574C",
 };
 

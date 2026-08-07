@@ -155,7 +155,7 @@ export default function Contest({ user, izle, girisAc }) {
             type="submit"
             disabled={!secili}
             style={{
-              background: t.accent,
+              background: t.gradient,
               color: "#0A0A0B",
               border: "none",
               borderRadius: 8,
@@ -273,7 +273,7 @@ export default function Contest({ user, izle, girisAc }) {
                     style={{
                       width: `${(oySayisi / enCokOy) * 100}%`,
                       height: "100%",
-                      background: t.accent,
+                      background: t.gradient,
                       borderRadius: 2,
                       opacity: 0.85,
                     }}
@@ -303,7 +303,7 @@ function OyDugme({ oyum, s, tikla }) {
         tikla();
       }}
       style={{
-        background: oyum ? t.accent : "none",
+        background: oyum ? t.gradient : "none",
         color: oyum ? "#0A0A0B" : t.text,
         border: oyum ? "none" : `1px solid ${t.line}`,
         borderRadius: 6,

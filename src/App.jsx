@@ -248,7 +248,7 @@ export default function App() {
                     width: 8,
                     height: 8,
                     borderRadius: 4,
-                    background: t.accent,
+                    background: t.gradient,
                   }}
                 />
               )}

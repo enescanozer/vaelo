@@ -268,7 +268,7 @@ export default function Upload({ user }) {
                 style={{
                   width: `${ilerleme}%`,
                   height: "100%",
-                  background: t.accent,
+                  background: t.gradient,
                   transition: "width .2s",
                 }}
               />
@@ -279,7 +279,7 @@ export default function Upload({ user }) {
           <button
             type="submit"
             style={{
-              background: t.accent,
+              background: t.gradient,
               color: "#0A0A0B",
               border: "none",
               borderRadius: 8,

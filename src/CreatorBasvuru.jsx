@@ -28,7 +28,7 @@ export default function CreatorBasvuru({ user, girisAc }) {
   const baslik = { fontFamily: t.display, fontWeight: 800, fontSize: 28, marginBottom: 10 };
   const alt = { color: t.dim, fontSize: 15, lineHeight: 1.6, marginBottom: 24 };
   const anaDugme = {
-    background: t.accent, color: "#0A0A0B", border: "none", borderRadius: 8,
+    background: t.gradient, color: "#0A0A0B", border: "none", borderRadius: 8,
     padding: "12px 22px", fontSize: 15, fontWeight: 700, cursor: "pointer",
   };
   const rozet = (renk) => ({

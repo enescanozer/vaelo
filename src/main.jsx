@@ -44,7 +44,7 @@ class HataYakalayici extends React.Component {
           <button
             onClick={() => window.location.reload()}
             style={{
-              background: t.accent,
+              background: t.gradient,
               color: "#0A0A0B",
               border: "none",
               borderRadius: 8,

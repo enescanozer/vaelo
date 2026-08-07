@@ -349,7 +349,7 @@ function AnaSayfa({ user, ac, oynat }) {
           )}
           <button
             style={{
-              background: t.accent,
+              background: t.gradient,
               color: "#0A0A0B",
               border: "none",
               borderRadius: 8,
@@ -474,7 +474,7 @@ function DevamRafi({ ogeler, oynat }) {
                     background: "rgba(255,255,255,0.15)",
                   }}
                 >
-                  <div style={{ width: `${oran * 100}%`, height: "100%", background: t.accent }} />
+                  <div style={{ width: `${oran * 100}%`, height: "100%", background: t.gradient }} />
                 </div>
               </div>
               <div style={{ marginTop: 8, fontSize: 14, fontWeight: 600 }}>{baslik.name}</div>
@@ -679,7 +679,7 @@ function Detay({ id, user, oynat, geri }) {
           <button
             onClick={() => oynat(baslik.videos[0], baslik)}
             style={{
-              background: t.accent,
+              background: t.gradient,
               color: "#0A0A0B",
               border: "none",
               borderRadius: 8,
@@ -994,7 +994,7 @@ function Oynatici({ video, baslik, baslangic = 0, user, oynat, geri }) {
               <button
                 onClick={() => oynat(sonraki.video, sonraki.baslik)}
                 style={{
-                  background: t.accent,
+                  background: t.gradient,
                   color: "#0A0A0B",
                   border: "none",
                   borderRadius: 6,
@@ -1036,7 +1036,7 @@ function Cip({ etiket, secili, sec }) {
     <button
       onClick={sec}
       style={{
-        background: secili ? t.accent : "none",
+        background: secili ? t.gradient : "none",
         color: secili ? "#0A0A0B" : t.dim,
         border: secili ? "none" : `1px solid ${t.line}`,
         borderRadius: 999,

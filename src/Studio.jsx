@@ -10,7 +10,7 @@ const DURUM_RENK = {
   uploading: "#8C8F88",
   processing: "#8C8F88",
   in_review: "#ECEEE9",
-  approved: "#CDFF4A",
+  approved: "#FF4DBD",
   rejected: "#E2574C",
 };
 
@@ -345,7 +345,7 @@ function StudioSatiri({ sat, s }) {
               onClick={aiUret}
               disabled={aiAsama === "calisiyor"}
               style={{
-                background: t.accent,
+                background: t.gradient,
                 color: "#0A0A0B",
                 border: "none",
                 borderRadius: 6,
@@ -384,7 +384,7 @@ function StudioSatiri({ sat, s }) {
               onClick={yukle}
               disabled={!dosya || asama === "yukleniyor"}
               style={{
-                background: t.accent,
+                background: t.gradient,
                 color: "#0A0A0B",
                 border: "none",
                 borderRadius: 6,

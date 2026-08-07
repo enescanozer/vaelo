@@ -165,7 +165,7 @@ export default function AdminPanel({ admin }) {
                 onClick={() => onayla(video)}
                 disabled={islemde === video.id}
                 style={{
-                  background: t.accent,
+                  background: t.gradient,
                   color: "#0A0A0B",
                   border: "none",
                   borderRadius: 8,
@@ -278,7 +278,7 @@ function Basvurular() {
               <>
                 <button
                   onClick={() => karar(b.user_id, true)}
-                  style={{ ...dgm, background: t.accent, color: "#0A0A0B", border: "none" }}
+                  style={{ ...dgm, background: t.gradient, color: "#0A0A0B", border: "none" }}
                 >
                   {s.panel.basvuruOnayla}
                 </button>
@@ -364,7 +364,7 @@ function Roller() {
                     key={r}
                     onClick={() => rolDegistir(k, r)}
                     style={{
-                      background: k.role === r ? t.accent : "none",
+                      background: k.role === r ? t.gradient : "none",
                       color: k.role === r ? "#0A0A0B" : t.dim,
                       border: `1px solid ${k.role === r ? t.accent : t.line}`,
                       borderRadius: 6,
@@ -478,7 +478,7 @@ function Sponsorlar() {
         <button
           type="submit"
           style={{
-            background: t.accent,
+            background: t.gradient,
             color: "#0A0A0B",
             border: "none",
             borderRadius: 8,
@@ -635,7 +635,7 @@ function Yarismalar() {
         <button
           type="submit"
           style={{
-            background: t.accent,
+            background: t.gradient,
             color: "#0A0A0B",
             border: "none",
             borderRadius: 8,

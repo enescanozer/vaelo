@@ -80,7 +80,7 @@ export default function AnalyticsPanel() {
                 title={`${g.gun}: ${g.izlenme}`}
                 style={{
                   height: Math.max(3, (Number(g.izlenme) / enYuksek) * 120),
-                  background: t.accent,
+                  background: t.gradient,
                   borderRadius: 3,
                   opacity: 0.9,
                 }}
