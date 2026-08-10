@@ -415,7 +415,18 @@ export default function App() {
       {/* Aktif sekme */}
       <main style={{ flex: 1 }}>
         {sekme === "kesfet" && (
-          <Viewer user={user} istenen={istenenBaslik} anaSinyal={anaSinyal} />
+          <Viewer
+            user={user}
+            istenen={istenenBaslik}
+            anaSinyal={anaSinyal}
+            festivalGit={(hedef) => {
+              // Festival CTA'ları: sanat → Tablo; film → rol-farkında (creator=Yükle,
+              // girişli izleyici=Üretici ol, anon=giriş).
+              if (hedef === "art") return setSekme("tablo");
+              if (!user) return setGirisAcik(true);
+              setSekme(creator ? "yukle" : "uretici");
+            }}
+          />
         )}
         {sekme === "tablo" && (
           <Tablo

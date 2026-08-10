@@ -10,6 +10,8 @@ import {
   creatorReddet,
   getModerasyonKuyrugu,
   moderasyonKarar,
+  getPlatformMode,
+  setPlatformMode,
 } from "./catalog";
 import { useLang } from "./i18n";
 import { t } from "./theme";
@@ -211,6 +213,8 @@ export default function AdminPanel({ admin }) {
       {/* Gelir/yarışma/rol/denetim yalnız admin (owner); moderatör yalnız inceleme kuyruğu */}
       {admin && (
         <>
+          <PlatformModu />
+          <PromoBannerlar />
           <Basvurular />
           <Roller />
           <Sponsorlar />
@@ -400,6 +404,150 @@ function ModerasyonKuyrugu() {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// ————— Platform modu (yalnız admin): festival ↔ netflix (site geneli, onaylı) —————
+function PlatformModu() {
+  const { s } = useLang();
+  const [mod, setMod] = useState(null);
+  const [hata, setHata] = useState(null);
+
+  useEffect(() => {
+    getPlatformMode().then(setMod).catch(() => {});
+  }, []);
+
+  async function degistir(yeni) {
+    if (yeni === mod) return;
+    if (!window.confirm(s.panel.mode.onay)) return; // her ziyaretçiyi etkiler → onay
+    const { error } = await setPlatformMode(yeni);
+    if (error) setHata(error.message);
+    else setMod(yeni);
+  }
+
+  return (
+    <div style={{ marginTop: 48 }}>
+      <div style={{ fontFamily: t.display, fontWeight: 700, fontSize: 18, marginBottom: 6 }}>
+        {s.panel.mode.baslik}
+      </div>
+      <div style={{ color: t.dim, fontSize: 13, marginBottom: 16 }}>{s.panel.mode.aciklama}</div>
+      {hata && <div style={{ color: t.danger, fontSize: 13, marginBottom: 12 }}>{hata}</div>}
+      <div style={{ display: "flex", gap: 10 }}>
+        {["festival", "netflix"].map((m) => (
+          <button
+            key={m}
+            onClick={() => degistir(m)}
+            style={{
+              background: mod === m ? t.gradient : "none",
+              color: mod === m ? "#0A0A0B" : t.dim,
+              border: `1px solid ${mod === m ? t.accent : t.line}`,
+              borderRadius: 8,
+              padding: "9px 22px",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            {m === "festival" ? s.panel.mode.festivalAd : s.panel.mode.netflixAd}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ————— Toplama promo banner'ları (yalnız admin) — Sponsorlar örüntüsü, AYRI tablo —————
+function PromoBannerlar() {
+  const { s } = useLang();
+  const [liste, setListe] = useState([]);
+  const [baslik, setBaslik] = useState("");
+  const [metin, setMetin] = useState("");
+  const [gorsel, setGorsel] = useState("");
+  const [link, setLink] = useState("");
+  const [hata, setHata] = useState(null);
+
+  async function yenile() {
+    const { data, error } = await supabase
+      .from("promo_banners").select("*").order("created_at", { ascending: false });
+    if (error) setHata(error.message);
+    else setListe(data ?? []);
+  }
+  useEffect(() => {
+    yenile();
+  }, []);
+
+  async function ekle(e) {
+    e.preventDefault();
+    const { error } = await supabase.from("promo_banners").insert({
+      title: baslik,
+      body: metin || null,
+      image_url: gorsel || null,
+      link_url: link || null,
+    });
+    if (error) return setHata(error.message);
+    setBaslik("");
+    setMetin("");
+    setGorsel("");
+    setLink("");
+    yenile();
+  }
+  async function acKapat(b) {
+    await supabase.from("promo_banners").update({ active: !b.active }).eq("id", b.id);
+    yenile();
+  }
+  async function sil(b) {
+    await supabase.from("promo_banners").delete().eq("id", b.id);
+    yenile();
+  }
+
+  const alanStil = {
+    padding: "9px 12px",
+    background: t.surface2,
+    border: `1px solid ${t.line}`,
+    borderRadius: 8,
+    color: t.text,
+    fontSize: 13,
+    outline: "none",
+  };
+
+  return (
+    <div style={{ marginTop: 48 }}>
+      <div style={{ fontFamily: t.display, fontWeight: 700, fontSize: 18, marginBottom: 6 }}>
+        {s.panel.promo.baslik}
+      </div>
+      <div style={{ color: t.dim, fontSize: 13, marginBottom: 16 }}>{s.panel.promo.aciklama}</div>
+      {hata && <div style={{ color: t.danger, fontSize: 13, marginBottom: 12 }}>{hata}</div>}
+
+      <form onSubmit={ekle} style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+        <input style={{ ...alanStil, width: 180 }} placeholder={s.panel.promo.baslikAlan} value={baslik} onChange={(e) => setBaslik(e.target.value)} required />
+        <input style={{ ...alanStil, flex: 1, minWidth: 160 }} placeholder={s.panel.promo.metin} value={metin} onChange={(e) => setMetin(e.target.value)} />
+        <input style={{ ...alanStil, width: 180 }} placeholder={s.panel.promo.gorselAlan} value={gorsel} onChange={(e) => setGorsel(e.target.value)} />
+        <input style={{ ...alanStil, width: 180 }} placeholder={s.panel.promo.linkAlan} type="url" value={link} onChange={(e) => setLink(e.target.value)} />
+        <button type="submit" style={{ background: t.gradient, color: "#0A0A0B", border: "none", borderRadius: 8, padding: "9px 16px", fontSize: 13, fontWeight: 700 }}>
+          {s.panel.ekle}
+        </button>
+      </form>
+
+      <div style={{ display: "grid", gap: 8 }}>
+        {liste.length === 0 && <div style={{ color: t.dim, fontSize: 13 }}>{s.panel.promo.yok}</div>}
+        {liste.map((b) => (
+          <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: t.surface, border: `1px solid ${t.line}`, borderRadius: 8, fontSize: 13 }}>
+            <span style={{ fontWeight: 600 }}>{b.title}</span>
+            {b.body && <span style={{ color: t.dim, flex: 1, minWidth: 0 }}>{b.body}</span>}
+            {!b.body && <span style={{ flex: 1 }} />}
+            <span style={{ color: b.active ? t.accent : t.dim, fontSize: 12 }}>
+              {b.active ? s.panel.aktif : s.panel.pasif}
+            </span>
+            <button onClick={() => acKapat(b)} style={{ background: "none", border: `1px solid ${t.line}`, borderRadius: 6, color: t.dim, padding: "5px 10px", fontSize: 12 }}>
+              {b.active ? s.panel.durdur : s.panel.surdur}
+            </button>
+            <button onClick={() => sil(b)} style={{ background: "none", border: "none", color: t.danger, fontSize: 12, padding: "5px 4px" }}>
+              {s.panel.sil}
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -49,6 +49,8 @@ import {
   eserGonder,
   artBildir,
   kayitPushToken,
+  getPlatformMode,
+  getPromoBanner,
 } from "./api";
 import {
   useAuth,
@@ -362,6 +364,12 @@ export default function App() {
               oynat={oynat}
               ac={(id) => setGorunum({ tip: "detay", id })}
               aramaOdak={sekme === "discover"}
+              festivalGit={(hedef) => {
+                // sanat → Tablo (tam ekran); film → giriş yoksa çağır, varsa Upload sekmesi
+                if (hedef === "art") return setGorunum({ tip: "tablo" });
+                if (!user) return setGirisAcik(true);
+                setSekme("upload");
+              }}
             />
           )}
           {sekme === "upload" && (
@@ -771,12 +779,91 @@ function AnaIskelet() {
   );
 }
 
+// ————— Festival (toplama fazı) landing'i: promo banner + iki AYRI CTA (film / sanat) —————
+function MobilFestivalKart({ baslik, alt, cta, vurgulu, bas }) {
+  return (
+    <View style={{ borderWidth: 1, borderColor: t.line, borderRadius: 14, padding: 18, marginTop: 12, backgroundColor: t.surface }}>
+      <Text style={{ color: t.text, fontSize: 17, fontWeight: "700" }}>{baslik}</Text>
+      <Text style={{ color: t.dim, fontSize: 13, marginTop: 6, lineHeight: 19 }}>{alt}</Text>
+      <TouchableOpacity
+        onPress={bas}
+        activeOpacity={0.85}
+        style={[
+          { marginTop: 14, alignSelf: "flex-start", borderRadius: 8, paddingHorizontal: 20, paddingVertical: 10, overflow: "hidden" },
+          vurgulu ? {} : { borderWidth: 1, borderColor: t.line },
+        ]}
+      >
+        {vurgulu && <Gradyan />}
+        <Text style={{ color: vurgulu ? "#0A0A0B" : t.text, fontWeight: "700", fontSize: 14 }}>{cta}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+function MobilFestival({ d, banner, git, tabloAc, ayarlarAc, user, girisAc }) {
+  const f = d.festival;
+  const link = banner?.link_url && /^https?:\/\//i.test(banner.link_url) ? banner.link_url : null;
+  return (
+    <ScrollView style={s.kap} contentContainerStyle={{ paddingBottom: 120 }}>
+      {/* Header (ana ekranla tutarlı) */}
+      <View style={s.ustSatir}>
+        <ExpoImage
+          source={require("./assets/vaelo_horizontal_lockup_transparent.png")}
+          style={{ height: 24, width: 77 }}
+          contentFit="contain"
+          accessibilityLabel="Vaelo"
+        />
+        <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+          <TouchableOpacity style={s.dilDugme} onPress={tabloAc}>
+            <Text style={s.dilYazi}>{d.tablo.etiket}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.dilDugme} onPress={ayarlarAc}>
+            <Text style={[s.dilYazi, { fontSize: 15 }]}>⚙</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.dilDugme} onPress={() => (user ? signOut() : girisAc())}>
+            <Text style={s.dilYazi}>{user ? d.cikis : d.girisYap}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+        {banner && (
+          <TouchableOpacity
+            disabled={!link}
+            onPress={() => link && Linking.openURL(link)}
+            activeOpacity={link ? 0.85 : 1}
+            style={{ borderWidth: 1, borderColor: t.line, borderRadius: 14, overflow: "hidden", marginBottom: 20, backgroundColor: t.surface }}
+          >
+            {banner.image_url ? (
+              <ExpoImage source={{ uri: banner.image_url }} style={{ width: "100%", height: 150 }} contentFit="cover" />
+            ) : null}
+            <View style={{ padding: 14 }}>
+              <Text style={{ color: t.text, fontSize: 16, fontWeight: "700" }}>{banner.title}</Text>
+              {banner.body ? <Text style={{ color: t.dim, fontSize: 13, marginTop: 4 }}>{banner.body}</Text> : null}
+            </View>
+          </TouchableOpacity>
+        )}
+        <Text style={{ color: t.text, fontSize: 26, fontWeight: "800", lineHeight: 30 }}>{f.baslik}</Text>
+        <Text style={{ color: t.dim, fontSize: 15, marginTop: 10, lineHeight: 21 }}>{f.alt}</Text>
+        <MobilFestivalKart baslik={f.filmBaslik} alt={f.filmAlt} cta={f.filmCta} vurgulu bas={() => git("film")} />
+        <MobilFestivalKart baslik={f.artBaslik} alt={f.artAlt} cta={f.artCta} bas={() => git("art")} />
+      </View>
+    </ScrollView>
+  );
+}
+
 // ————— Ana: hero + açıklamalı dikey akış + akıllı arama —————
-function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac, aramaOdak }) {
+function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac, aramaOdak, festivalGit }) {
   const aramaRef = useRef(null);
   useEffect(() => {
     if (aramaOdak) aramaRef.current?.focus();
   }, [aramaOdak]);
+  // Platform modu + aktif promo banner (festival landing için)
+  const [mod, setMod] = useState(null);
+  const [banner, setBanner] = useState(null);
+  useEffect(() => {
+    getPlatformMode().then(setMod).catch(() => setMod("netflix"));
+    getPromoBanner().then(setBanner).catch(() => {});
+  }, []);
   const [katalog, setKatalog] = useState(null);
   const [hata, setHata] = useState(null);
   const [arama, setArama] = useState("");
@@ -829,6 +916,22 @@ function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac, aramaOdak }) {
     }, 300);
     return () => clearTimeout(z);
   }, [arama]);
+
+  // Mod yüklenene dek iskelet; festival modunda toplama landing'i (hero+feed yerine)
+  if (mod === null) return <AnaIskelet />;
+  if (mod === "festival") {
+    return (
+      <MobilFestival
+        d={d}
+        banner={banner}
+        git={festivalGit}
+        tabloAc={tabloAc}
+        ayarlarAc={ayarlarAc}
+        user={user}
+        girisAc={girisAc}
+      />
+    );
+  }
 
   if (hata) return <Durum d={d} mesaj={d.sunucuYok(hata)} />;
   if (!katalog) return <AnaIskelet />;

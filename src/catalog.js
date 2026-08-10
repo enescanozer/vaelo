@@ -539,3 +539,33 @@ export async function creatorOnayla(userId) {
 export async function creatorReddet(userId) {
   return supabase.rpc("creator_reddet", { p_user: userId });
 }
+
+// ————— Platform modu (festival ↔ netflix) + toplama-fazı promo banner —————
+// Mod her ziyaretçiye (anon dahil) uygulanır. Katalog önbelleğiyle aynı TTL — ekstra
+// yavaş round-trip yok. Varsayılan 'festival' (tablo/erişim yoksa da güvenli).
+let modOnbellek = null;
+let modZamani = 0;
+export async function getPlatformMode() {
+  if (modOnbellek && Date.now() - modZamani < KATALOG_TTL_MS) return modOnbellek;
+  const { data } = await supabase.from("platform_config").select("mode").eq("id", 1).maybeSingle();
+  modOnbellek = data?.mode ?? "festival";
+  modZamani = Date.now();
+  return modOnbellek;
+}
+export async function setPlatformMode(mode) {
+  const r = await supabase.rpc("platform_mode_ayarla", { p_mode: mode });
+  modOnbellek = null; // sonraki okumada taze
+  return r;
+}
+// Landing için tek aktif banner (en yeni). Admin CRUD için getPromoBanners.
+export async function getPromoBanner() {
+  const { data } = await supabase
+    .from("promo_banners").select("*").eq("active", true)
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return data ?? null;
+}
+export async function getPromoBanners() {
+  const { data } = await supabase
+    .from("promo_banners").select("*").order("created_at", { ascending: false });
+  return data ?? [];
+}

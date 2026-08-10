@@ -41,6 +41,32 @@ export async function getCatalog() {
   return veri.map(onayliBolumler).filter((b) => b.videos.length > 0);
 }
 
+// Platform modu (festival ↔ netflix) — anon okunur, kısa önbellek (ekstra round-trip yok)
+let _modOnbellek = null;
+let _modZaman = 0;
+export async function getPlatformMode() {
+  if (_modOnbellek && Date.now() - _modZaman < 60000) return _modOnbellek;
+  try {
+    const veri = await getir("platform_config?select=mode&id=eq.1");
+    _modOnbellek = veri?.[0]?.mode ?? "festival";
+  } catch {
+    _modOnbellek = "festival"; // güvenli varsayılan
+  }
+  _modZaman = Date.now();
+  return _modOnbellek;
+}
+// Festival landing'i için tek aktif promo banner
+export async function getPromoBanner() {
+  try {
+    const veri = await getir(
+      "promo_banners?select=*&active=eq.true&order=created_at.desc&limit=1"
+    );
+    return veri?.[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // Tek başlık + sıralı bölümler
 export async function getTitle(id) {
   const veri = await getir(`titles?select=*,videos(*)&id=eq.${id}`);

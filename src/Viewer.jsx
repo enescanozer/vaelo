@@ -17,6 +17,8 @@ import {
   iframeUrl,
   thumbUrl,
   toCard,
+  getPlatformMode,
+  getPromoBanner,
 } from "./catalog";
 import { useLang } from "./i18n";
 import { useAyarlar } from "./ayarlar";
@@ -42,7 +44,7 @@ function streamSdkYukle() {
 // sonraki sekme dönüşlerinde Keşfet ana sayfadan başlar.
 let derinBaglantiKullanildi = false;
 
-export default function Viewer({ user, istenen, anaSinyal }) {
+export default function Viewer({ user, istenen, anaSinyal, festivalGit }) {
   // gorunum: {tip:"ana"} | {tip:"detay", id} | {tip:"oynat", video, baslik, baslangic}
   const [gorunum, setGorunum] = useState(() => {
     const paylasilan =
@@ -102,13 +104,97 @@ export default function Viewer({ user, istenen, anaSinyal }) {
     );
   }
 
-  return <AnaSayfa user={user} ac={(id) => setGorunum({ tip: "detay", id })} oynat={oynat} />;
+  return (
+    <AnaSayfa
+      user={user}
+      ac={(id) => setGorunum({ tip: "detay", id })}
+      oynat={oynat}
+      festivalGit={festivalGit}
+    />
+  );
+}
+
+// ————— Festival (toplama fazı) landing'i: promo banner + iki AYRI CTA (film / sanat) —————
+function FestivalKart({ baslik, alt, cta, vurgulu, onClick }) {
+  return (
+    <div style={{ border: `1px solid ${t.line}`, borderRadius: 14, padding: 22, background: t.surface, display: "flex", flexDirection: "column" }}>
+      <div style={{ fontFamily: t.display, fontWeight: 700, fontSize: 19 }}>{baslik}</div>
+      <div style={{ color: t.dim, fontSize: 14, marginTop: 8, flex: 1, lineHeight: 1.5 }}>{alt}</div>
+      <button
+        onClick={onClick}
+        style={{
+          marginTop: 18,
+          alignSelf: "flex-start",
+          background: vurgulu ? t.gradient : "none",
+          color: vurgulu ? "#0A0A0B" : t.text,
+          border: vurgulu ? "none" : `1px solid ${t.line}`,
+          borderRadius: 8,
+          padding: "10px 20px",
+          fontSize: 14,
+          fontWeight: 700,
+          cursor: "pointer",
+        }}
+      >
+        {cta}
+      </button>
+    </div>
+  );
+}
+function FestivalLanding({ s, banner, git }) {
+  const f = s.kesfet.festival;
+  const bannerLink = /^https?:\/\//i.test(banner?.link_url || "") ? banner.link_url : undefined;
+  return (
+    <div style={{ maxWidth: 760, margin: "0 auto", padding: `40px ${t.pad} 80px` }}>
+      {banner && (
+        <a
+          href={bannerLink}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            display: "block",
+            textDecoration: "none",
+            color: "inherit",
+            marginBottom: 32,
+            border: `1px solid ${t.line}`,
+            borderRadius: 14,
+            overflow: "hidden",
+            background: t.surface,
+          }}
+        >
+          {banner.image_url && (
+            <img src={banner.image_url} alt="" style={{ width: "100%", maxHeight: 220, objectFit: "cover", display: "block" }} />
+          )}
+          <div style={{ padding: 18 }}>
+            <div style={{ fontFamily: t.display, fontWeight: 700, fontSize: 18 }}>{banner.title}</div>
+            {banner.body && <div style={{ color: t.dim, fontSize: 14, marginTop: 6 }}>{banner.body}</div>}
+          </div>
+        </a>
+      )}
+
+      <div style={{ fontFamily: t.display, fontWeight: 800, fontSize: "clamp(28px, 6vw, 44px)", lineHeight: 1.1 }}>
+        {f.baslik}
+      </div>
+      <div style={{ color: t.dim, fontSize: 16, marginTop: 12, lineHeight: 1.5, maxWidth: 560 }}>{f.alt}</div>
+
+      <div style={{ display: "grid", gap: 16, marginTop: 36, gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
+        <FestivalKart baslik={f.filmBaslik} alt={f.filmAlt} cta={f.filmCta} vurgulu onClick={() => git("film")} />
+        <FestivalKart baslik={f.artBaslik} alt={f.artAlt} cta={f.artCta} onClick={() => git("art")} />
+      </div>
+    </div>
+  );
 }
 
 // ————— Ana sayfa: arama + hero + raflar —————
-function AnaSayfa({ user, ac, oynat }) {
+function AnaSayfa({ user, ac, oynat, festivalGit }) {
   const { s } = useLang();
   const { yukleniyor, hero, katalog, hata } = useHomeData();
+  // Platform modu (festival ↔ netflix) + aktif promo banner — katalogla aynı önbellek TTL'i
+  const [mod, setMod] = useState(null);
+  const [banner, setBanner] = useState(null);
+  useEffect(() => {
+    getPlatformMode().then(setMod).catch(() => setMod("netflix"));
+    getPromoBanner().then(setBanner).catch(() => {});
+  }, []);
   const [arama, setArama] = useState("");
   const [sonuclar, setSonuclar] = useState(null); // null = arama kapalı
   const [devam, setDevam] = useState([]);
@@ -183,7 +269,15 @@ function AnaSayfa({ user, ac, oynat }) {
     };
   }, [user?.id, katalog]);
 
-  if (yukleniyor) return <AnaIskelet />;
+  // Katalog VE mod yüklenene dek iskelet — netflix↔festival arası titremeyi önler
+  if (yukleniyor || mod === null) return <AnaIskelet />;
+
+  // FESTIVAL modu: hero+feed+arama+filtre yerine toplama landing'i (yalnız Home).
+  // Nav/sekmeler değişmez; Discover/Upload/Studio/Profile aynı kalır.
+  if (mod === "festival") {
+    return <FestivalLanding s={s} banner={banner} git={festivalGit} />;
+  }
+
   if (hata) {
     // Ham ağ hatası yerine anlaşılır mesaj
     const dostane = hata.includes("Failed to fetch")
