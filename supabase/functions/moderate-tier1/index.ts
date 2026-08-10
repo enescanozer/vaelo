@@ -7,6 +7,7 @@
 // Dağıtım: npx supabase functions deploy moderate-tier1
 // Secret'lar: COMPUTE_SERVICE_URL, COMPUTE_SERVICE_TOKEN (+ SUPABASE_* otomatik)
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { tier1Karar, verdiktenSonuc } from "./lib.ts";
 
 const COMPUTE_URL = Deno.env.get("COMPUTE_SERVICE_URL");
 const COMPUTE_TOKEN = Deno.env.get("COMPUTE_SERVICE_TOKEN");
@@ -17,28 +18,7 @@ const yanit = (g: unknown, s = 200) =>
 // Kaba dil tahmini (titles'ta dil alanı yok) — TR'ye özgü harfler → tr. İleride gerçek tespit.
 const dilTahmin = (metin: string) => (/[ğşıçöü]/i.test(metin) ? "tr" : "en");
 
-// KISA DEVRE: 'rejected' | 'approved' | 'escalate'
-// GÜVENLİK: görsel skor (nudity/violence) NULL olabilir (kare yok = Stream entegre değil).
-// null → görsel BİLİNMİYOR → asla "temiz" sayılmaz → APPROVED kısa devresi TETİKLENMEZ; escalate.
-// (Metin sinyalleri tek başına görsel içerik onayına yetmez.)
-function tier1Karar(sc: any): string {
-  // Reject için null'ı 0 say (bilinmeyen tek başına reddi tetiklemez).
-  const gorselMax = Math.max(sc.nudity ?? 0, sc.violence ?? 0);
-  if (gorselMax >= 0.9 || sc.keyword_hit === true) return "rejected";
-
-  // APPROVED için görsel MUTLAKA bilinmeli (frames_available + sayısal) ve düşük olmalı.
-  const gorselTemiz =
-    sc.frames_available === true &&
-    typeof sc.nudity === "number" && sc.nudity < 0.3 &&
-    typeof sc.violence === "number" && sc.violence < 0.3;
-  const metinTemiz =
-    (sc.hate_politics ?? 0) < 0.3 && (sc.profanity ?? 0) < 0.3 && (sc.toxicity ?? 0) < 0.3;
-  const trBelirsiz = sc.perspective_low_confidence === true; // TR düşük güven → otomatik onaylama
-
-  if (gorselTemiz && metinTemiz && sc.keyword_hit !== true && !trBelirsiz) return "approved";
-  // Görsel bilinmiyor / yüksek belirsizlik → Tier 2 (kare yoksa Tier 2 MANUAL_REVIEW'e düşürür).
-  return "escalate";
-}
+// tier1Karar + verdiktenSonuc → lib.ts (saf, test edilebilir).
 
 async function birVideoIsle(servis: any, video: any) {
   const metin = `${video.titles?.name ?? ""} ${video.titles?.description ?? ""}`.trim();
@@ -66,46 +46,27 @@ async function birVideoIsle(servis: any, video: any) {
   const sc = tier1?.tier1_scores ?? { frames_available: false };
   const flagged = tier1?.flagged_timestamps ?? [];
 
-  // Compute başarısızsa hiç sinyal yok → admin incelesin
+  // Compute başarısızsa hiç sinyal yok → admin incelesin ('manual')
   const verdict = tier1 ? tier1Karar(sc) : "manual";
-
-  // verdict → final_action / needs_tier2 / status / videos.status
-  let finalAction: string | null = null;
-  let needsTier2 = false;
-  let status = "complete";
-  let videoStatus: string | null = null;
-
-  if (verdict === "rejected") {
-    finalAction = "REJECTED";
-    videoStatus = "rejected";
-  } else if (verdict === "approved") {
-    finalAction = "APPROVED";
-    videoStatus = "approved";
-  } else if (verdict === "manual") {
-    finalAction = "MANUAL_REVIEW"; // videos.status = in_review kalır (Panel kuyruğu)
-  } else {
-    // escalate → Tier 2 (cron); videos.status = in_review kalır
-    needsTier2 = true;
-    status = "pending";
-  }
+  const sonuc = verdiktenSonuc(verdict);
 
   await servis.from("moderation_results").upsert(
     {
       video_id: video.id,
       tier1_scores: sc,
-      tier1_verdict: verdict === "manual" ? "escalate" : verdict, // 'manual'ı 'escalate' say
-      needs_tier2: needsTier2,
+      tier1_verdict: sonuc.tier1Verdict,
+      needs_tier2: sonuc.needsTier2,
       flagged_timestamps: flagged,
-      final_action: finalAction,
-      status,
+      final_action: sonuc.finalAction,
+      status: sonuc.status,
       reasoning: tier1 ? null : "compute servisine ulaşılamadı → elle inceleme",
     },
     { onConflict: "video_id" },
   );
 
-  // videos.status YALNIZCA nihai APPROVED/REJECTED'te değişir (spec). MANUAL_REVIEW/escalate → in_review kalır.
-  if (videoStatus) {
-    await servis.from("videos").update({ status: videoStatus }).eq("id", video.id);
+  // videos.status YALNIZCA nihai APPROVED/REJECTED'te değişir. MANUAL_REVIEW/escalate → in_review kalır.
+  if (sonuc.videoStatus) {
+    await servis.from("videos").update({ status: sonuc.videoStatus }).eq("id", video.id);
   }
   return verdict;
 }
@@ -141,7 +102,9 @@ Deno.serve(async (req) => {
 
     const sonuc: Record<string, number> = {};
     for (const v of videolar ?? []) {
-      if (islenmis.has(v.id) && !videoId) continue; // yalnız açıkça istenirse yeniden işle
+      // İDEMPOTENT: moderation_results zaten varsa yeniden işleme (webhook retry / tekrarlı
+      // çağrı / tarama-webhook yarışı güvenli). unique(video_id) da tek satır garantiler.
+      if (islenmis.has(v.id)) continue;
       const verdict = await birVideoIsle(servis, v);
       sonuc[verdict] = (sonuc[verdict] ?? 0) + 1;
     }

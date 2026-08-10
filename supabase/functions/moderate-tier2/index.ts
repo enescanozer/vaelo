@@ -12,6 +12,7 @@
 // Dağıtım: npx supabase functions deploy moderate-tier2 ; Schedule: */2 * * * *
 import { createClient } from "npm:@supabase/supabase-js@2";
 import Anthropic from "npm:@anthropic-ai/sdk";
+import { finalEylem } from "./lib.ts";
 
 const CF_CODE = Deno.env.get("CF_CODE"); // Stream hesap kodu — kare çekmek için
 const MODEL = "claude-haiku-4-5-20251001";
@@ -67,12 +68,7 @@ async function kareleriCek(cfUid: string, flagged: any[]): Promise<string[]> {
   return kareler;
 }
 
-function finalEylem(sc: any): string {
-  const maks = Math.max(sc.nudity ?? 0, sc.violence ?? 0, sc.hate_politics ?? 0, sc.profanity ?? 0);
-  if (maks >= 0.85) return "REJECTED";
-  if (maks >= 0.4) return "MANUAL_REVIEW";
-  return "APPROVED";
-}
+// finalEylem → lib.ts (saf, test edilebilir).
 
 async function submitAsamasi(servis: any, anthropic: Anthropic) {
   const { data: bekleyen } = await servis

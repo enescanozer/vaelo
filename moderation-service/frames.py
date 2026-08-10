@@ -14,7 +14,10 @@ import tempfile
 
 import requests
 
-CF_CODE = os.environ.get("CF_CODE", "")  # customer-<CODE>.cloudflarestream.com
+# customer-<CODE>.cloudflarestream.com — env'den DİNAMİK okunur (test monkeypatch edebilsin)
+def _cf_code() -> str:
+    return os.environ.get("CF_CODE", "")
+
 
 # 10 dk için 8–15 kare (spec). Süreye göre kare sayısı; süre yoksa 8 sabit nokta.
 _MIN, _MAX = 8, 15
@@ -27,10 +30,11 @@ def _kare_sayisi(duration: float) -> int:
 
 
 def _stream_thumbs(cf_uid: str, duration: float):
-    if not (CF_CODE and cf_uid):
+    cf_code = _cf_code()
+    if not (cf_code and cf_uid):
         return []
     n = _kare_sayisi(duration)
-    taban = f"https://customer-{CF_CODE}.cloudflarestream.com/{cf_uid}/thumbnails/thumbnail.jpg"
+    taban = f"https://customer-{cf_code}.cloudflarestream.com/{cf_uid}/thumbnails/thumbnail.jpg"
     kareler = []
     for i in range(n):
         t = duration * (i + 0.5) / n if duration else i * 30

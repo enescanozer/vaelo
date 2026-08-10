@@ -1,7 +1,7 @@
 // stream-webhook birim testleri (Cloudflare GEREKTİRMEZ — saf yardımcılar).
 // Çalıştır: deno test supabase/functions/stream-webhook/test.ts --allow-env
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { imzaGecerliMi, tier1TetiklenmeliMi } from "./lib.ts";
+import { imzaGecerliMi, tier1Tetikle, tier1TetiklenmeliMi } from "./lib.ts";
 
 // Verilen gövde + sır için geçerli Webhook-Signature üretir (CF biçimi).
 async function imzaUret(govde: string, sir: string, ts = "1700000000") {
@@ -57,4 +57,45 @@ Deno.test("HMAC: gecerli → true, gecersiz/eksik → false", async () => {
   // Başlık yok
   const reqNone = new Request("http://x");
   assertEquals(await imzaGecerliMi(reqNone, govde), false);
+});
+
+// Sıra senaryoları: her webhook bağımsız; karar per-call (status geçişine göre satır sayısı).
+Deno.test("sıra: ready→error / error→ready — yalnız gerçek ready+geçiş tetikler", () => {
+  assertEquals(tier1TetiklenmeliMi("ready", 1), true); // ilk ready: 1 satır geçti → tetikle
+  assertEquals(tier1TetiklenmeliMi("error", 0), false); // ardından error → asla
+  // error önce rejected yaptıysa, sonraki ready update'i 0 satır eşler (terminal) → tetiklemez
+  assertEquals(tier1TetiklenmeliMi("ready", 0), false);
+});
+
+Deno.test("duplicate error (tekrar, 0 satır) → asla tetiklemez", () => {
+  assertEquals(tier1TetiklenmeliMi("error", 0), false);
+  assertEquals(tier1TetiklenmeliMi("error", 0), false);
+});
+
+// Tier1 failure/timeout: tier1Tetikle fetch hatasını YUTAR (webhook 200 dönmeye devam eder).
+Deno.test("tier1Tetikle: fetch hatası yutulur (throw etmez)", async () => {
+  const orij = globalThis.fetch;
+  globalThis.fetch = () => Promise.reject(new Error("timeout"));
+  try {
+    await tier1Tetikle("http://x", "key", "vid-1"); // throw ETMEMELİ
+  } finally {
+    globalThis.fetch = orij;
+  }
+});
+
+Deno.test("tier1Tetikle: doğru URL + video_id + service-role ile çağırır", async () => {
+  const orij = globalThis.fetch;
+  let cagrilan: any = null;
+  globalThis.fetch = ((url: any, opt: any) => {
+    cagrilan = { url, body: opt?.body, auth: opt?.headers?.Authorization };
+    return Promise.resolve(new Response("ok"));
+  }) as typeof fetch;
+  try {
+    await tier1Tetikle("http://sb", "svc-key", "vid-9");
+    assertEquals(cagrilan.url, "http://sb/functions/v1/moderate-tier1");
+    assertEquals(JSON.parse(cagrilan.body).video_id, "vid-9");
+    assertEquals(cagrilan.auth, "Bearer svc-key");
+  } finally {
+    globalThis.fetch = orij;
+  }
 });
