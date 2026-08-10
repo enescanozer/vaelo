@@ -3,9 +3,10 @@
 // oynatıcı = video üstte sabit, altında kaydırılabilir bilgi + bölüm listesi;
 // arama = yazarken anında, ada göre akıllı sıralı, kapak+açıklamalı zengin satırlar.
 // Dil: varsayılan İngilizce, başlıktaki anahtar döngüsel (sözlük: mobil/i18n.js).
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Image,
   KeyboardAvoidingView,
   Linking,
@@ -25,6 +26,8 @@ import { StatusBar } from "expo-status-bar";
 import { WebView } from "react-native-webview";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   getCatalog,
   getTitle,
@@ -86,6 +89,149 @@ function Gradyan() {
   );
 }
 
+// ————— Premium alt navigasyon —————
+// Yüzen, yuvarlak, yükseltilmiş koyu yüzey; aktif sekme gradient pill (fade) + hafif
+// ölçek animasyonu (250ms); pasif gri. iOS güvenli alanına (home indicator) saygılı.
+const SEKME_TANIM = [
+  { id: "home", ikon: "home-outline", aktifIkon: "home", et: "navHome" },
+  { id: "discover", ikon: "search-outline", aktifIkon: "search", et: "navDiscover" },
+  { id: "upload", ikon: "cloud-upload-outline", aktifIkon: "cloud-upload", et: "navUpload" },
+  { id: "studio", ikon: "film-outline", aktifIkon: "film", et: "navStudio" },
+  { id: "profile", ikon: "person-outline", aktifIkon: "person", et: "navProfile" },
+];
+function AltNav({ d, sekme, setSekme }) {
+  const inset = useSafeAreaInsets();
+  return (
+    <View style={[s.altNavSar, { paddingBottom: Math.max(inset.bottom, 12) }]} pointerEvents="box-none">
+      <View style={s.altNav}>
+        {SEKME_TANIM.map((sk) => (
+          <AltNavOge
+            key={sk.id}
+            sk={sk}
+            etiket={d[sk.et]}
+            aktif={sekme === sk.id}
+            bas={() => setSekme(sk.id)}
+          />
+        ))}
+      </View>
+    </View>
+  );
+}
+function AltNavOge({ sk, etiket, aktif, bas }) {
+  const anim = useRef(new Animated.Value(aktif ? 1 : 0)).current;
+  useEffect(() => {
+    Animated.timing(anim, { toValue: aktif ? 1 : 0, duration: 250, useNativeDriver: true }).start();
+  }, [aktif]);
+  const scale = anim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
+  return (
+    <TouchableOpacity
+      style={s.altNavOge}
+      onPress={bas}
+      activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityState={{ selected: aktif }}
+      accessibilityLabel={etiket}
+    >
+      <Animated.View style={[s.altNavPill, { transform: [{ scale }] }]}>
+        {/* Gradient hep var; opaklık aktifken 1'e geçer (yumuşak fade) */}
+        <Animated.View style={[StyleSheet.absoluteFill, { opacity: anim }]}>
+          <Gradyan />
+        </Animated.View>
+        <Ionicons name={aktif ? sk.aktifIkon : sk.ikon} size={20} color={aktif ? "#0A0A0B" : t.dim} />
+        <Text
+          style={{
+            color: aktif ? "#0A0A0B" : t.dim,
+            fontSize: 10,
+            fontWeight: aktif ? "700" : "500",
+            marginTop: 2,
+          }}
+        >
+          {etiket}
+        </Text>
+      </Animated.View>
+    </TouchableOpacity>
+  );
+}
+
+// ————— Profil sekmesi: hesap + dil/alt yazı + çıkış (giriş yoksa çağrı) —————
+function ProfilEkrani({ d, user, dil, setDil, ayarlar, setAyarlar, girisAc }) {
+  const diller = Object.keys(METINLER);
+  const DIL_ADI = {
+    en: "English", tr: "Türkçe", es: "Español", de: "Deutsch", fr: "Français",
+    ru: "Русский", ar: "العربية", zh: "中文",
+  };
+  const Satir = ({ etiket, secili, sec }) => (
+    <TouchableOpacity style={s.secimSatiri} onPress={sec} activeOpacity={0.8}>
+      <Text style={{ color: t.text, fontSize: 14 }}>{etiket}</Text>
+      {secili && <Text style={{ color: t.accent, fontSize: 16 }}>✓</Text>}
+    </TouchableOpacity>
+  );
+  return (
+    <ScrollView style={s.kap} contentContainerStyle={{ padding: 16, paddingBottom: 130 }}>
+      <Image
+        source={require("./assets/vaelo_horizontal_lockup_transparent.png")}
+        style={{ height: 24, width: 77, resizeMode: "contain", marginBottom: 18 }}
+        accessibilityLabel="Vaelo"
+      />
+      {user ? (
+        <>
+          <Text style={{ color: t.text, fontSize: 17, fontWeight: "700" }}>{user.email}</Text>
+          <TouchableOpacity
+            style={[s.izleDugme, { alignSelf: "flex-start", marginTop: 12 }]}
+            onPress={() => signOut()}
+          >
+            <Gradyan />
+            <Text style={s.izleYazi}>{d.cikis}</Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        <>
+          <Text style={[s.dim, { marginBottom: 12 }]}>{d.girisAlt}</Text>
+          <TouchableOpacity style={[s.izleDugme, { alignSelf: "flex-start" }]} onPress={girisAc}>
+            <Gradyan />
+            <Text style={s.izleYazi}>{d.girisYap}</Text>
+          </TouchableOpacity>
+        </>
+      )}
+
+      <Text style={s.ayarBolum}>{d.dilEtiket}</Text>
+      {diller.map((kod) => (
+        <Satir key={kod} etiket={DIL_ADI[kod] ?? kod.toUpperCase()} secili={dil === kod} sec={() => setDil(kod)} />
+      ))}
+
+      <View style={[s.secimSatiri, { marginTop: 8 }]}>
+        <Text style={{ color: t.text, fontSize: 14 }}>{d.altyaziGoster}</Text>
+        <Switch
+          value={ayarlar.altyaziAcik}
+          onValueChange={(v) => setAyarlar((e) => ({ ...e, altyaziAcik: v }))}
+          trackColor={{ true: t.accent, false: t.line }}
+          thumbColor="#0A0A0B"
+        />
+      </View>
+    </ScrollView>
+  );
+}
+
+// ————— Geçit: mobilde henüz olmayan üretici akışları (Upload/Studio) — dürüst bilgi —————
+function Gecit({ d, tip, user, girisAc }) {
+  const ikon = tip === "upload" ? "cloud-upload-outline" : "film-outline";
+  const baslik = tip === "upload" ? d.navUpload : d.navStudio;
+  const mesaj = tip === "upload" ? d.gecitUpload : d.gecitStudio;
+  return (
+    <View style={[s.kap, { alignItems: "center", justifyContent: "center", padding: 32, paddingBottom: 120 }]}>
+      <Ionicons name={ikon} size={46} color={t.dim} />
+      <Text style={[s.modalBaslik, { marginTop: 16, textAlign: "center" }]}>{baslik}</Text>
+      <Text style={[s.dim, { textAlign: "center", marginTop: 8, lineHeight: 20 }]}>{mesaj}</Text>
+      {!user && (
+        <TouchableOpacity style={[s.izleDugme, { marginTop: 20 }]} onPress={girisAc}>
+          <Gradyan />
+          <Text style={s.izleYazi}>{d.girisYap}</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
 // ————— STEP 1: ücretsiz oynatma doğrulaması (geçici) —————
 // Cloudflare Stream'e para harcamadan Watch→oynatıcı→gerçek oynatma zincirini kanıtlamak
 // için, cf_uid YOKKEN (demo seed) herkese açık bir test HLS akışı oynatılır. iOS WebView
@@ -120,6 +266,7 @@ export default function App() {
   const [girisAcik, setGirisAcik] = useState(false);
   const [ayarlarAcik, setAyarlarAcik] = useState(false);
   const [sifreYenileAcik, setSifreYenileAcik] = useState(false);
+  const [sekme, setSekme] = useState("home"); // alt nav: home | discover | upload | studio | profile
   const { user } = useAuth();
   const d = METINLER[dil];
 
@@ -167,18 +314,42 @@ export default function App() {
   const oynat = (video, baslik) => setGorunum({ tip: "oynat", video, baslik });
 
   return (
+    <SafeAreaProvider>
     <SafeAreaView style={s.kap}>
       <StatusBar style="light" />
       {gorunum.tip === "ana" && (
-        <Ana
-          d={d}
-          user={user}
-          girisAc={() => setGirisAcik(true)}
-          ayarlarAc={() => setAyarlarAcik(true)}
-          tabloAc={() => setGorunum({ tip: "tablo" })}
-          oynat={oynat}
-          ac={(id) => setGorunum({ tip: "detay", id })}
-        />
+        <>
+          {(sekme === "home" || sekme === "discover") && (
+            <Ana
+              d={d}
+              user={user}
+              girisAc={() => setGirisAcik(true)}
+              ayarlarAc={() => setAyarlarAcik(true)}
+              tabloAc={() => setGorunum({ tip: "tablo" })}
+              oynat={oynat}
+              ac={(id) => setGorunum({ tip: "detay", id })}
+              aramaOdak={sekme === "discover"}
+            />
+          )}
+          {sekme === "upload" && (
+            <Gecit d={d} tip="upload" user={user} girisAc={() => setGirisAcik(true)} />
+          )}
+          {sekme === "studio" && (
+            <Gecit d={d} tip="studio" user={user} girisAc={() => setGirisAcik(true)} />
+          )}
+          {sekme === "profile" && (
+            <ProfilEkrani
+              d={d}
+              user={user}
+              dil={dil}
+              setDil={setDil}
+              ayarlar={ayarlar}
+              setAyarlar={setAyarlar}
+              girisAc={() => setGirisAcik(true)}
+            />
+          )}
+          <AltNav d={d} sekme={sekme} setSekme={setSekme} />
+        </>
       )}
       {gorunum.tip === "tablo" && (
         <Tablo
@@ -222,6 +393,7 @@ export default function App() {
       )}
       {sifreYenileAcik && <SifreYenileModal d={d} kapat={() => setSifreYenileAcik(false)} />}
     </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
@@ -516,7 +688,11 @@ function AuthModal({ d, kapat }) {
 }
 
 // ————— Ana: hero + açıklamalı dikey akış + akıllı arama —————
-function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac }) {
+function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac, aramaOdak }) {
+  const aramaRef = useRef(null);
+  useEffect(() => {
+    if (aramaOdak) aramaRef.current?.focus();
+  }, [aramaOdak]);
   const [katalog, setKatalog] = useState(null);
   const [hata, setHata] = useState(null);
   const [arama, setArama] = useState("");
@@ -634,7 +810,7 @@ function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac }) {
   return (
     <ScrollView
       style={s.kap}
-      contentContainerStyle={{ paddingBottom: 48 }}
+      contentContainerStyle={{ paddingBottom: 120 }}
       keyboardShouldPersistTaps="handled"
     >
       {/* Marka + dil anahtarı + giriş/çıkış */}
@@ -657,6 +833,7 @@ function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac }) {
         </View>
       </View>
       <TextInput
+        ref={aramaRef}
         style={s.arama}
         placeholder={d.ara}
         placeholderTextColor={t.dim}
@@ -1390,6 +1567,32 @@ const s = StyleSheet.create({
   cipSecili: { backgroundColor: t.accent },
   cipPasif: { borderColor: t.line, borderWidth: 1 },
   cipYazi: { fontSize: 13, fontWeight: "600" },
+  // Premium alt navigasyon: yüzen, yuvarlak, yükseltilmiş koyu yüzey
+  altNavSar: { position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 16 },
+  altNav: {
+    flexDirection: "row",
+    backgroundColor: "#15151A",
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: t.line,
+    paddingVertical: 6,
+    paddingHorizontal: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.45,
+    shadowRadius: 16,
+    elevation: 14,
+  },
+  altNavOge: { flex: 1, alignItems: "center" },
+  altNavPill: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    borderRadius: 16,
+    overflow: "hidden",
+    minWidth: 56,
+  },
   yatayKapak: {
     width: 150,
     height: 84,
