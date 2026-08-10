@@ -1,6 +1,8 @@
 // stream-webhook — Cloudflare Stream webhook'u: video işlenip hazır olduğunda
-// videos.status'u 'in_review' yapar. ASLA doğrudan 'approved' yapmaz; yayın kararı
-// yalnızca admin panelinden verilir.
+// videos.status'u 'in_review' yapar VE moderasyon Tier 1'i tetikler. ASLA doğrudan
+// 'approved' yapmaz; yayın kararı yalnızca admin/moderasyon boru hattından verilir.
+//
+// Akış:  Stream ready → in_review → moderate-tier1 (yalnız GERÇEK geçişte, duplicate-güvenli).
 //
 // Dağıtım (Cloudflare JWT gönderemeyeceği için JWT doğrulaması kapalı):
 //   supabase functions deploy stream-webhook --no-verify-jwt
@@ -8,35 +10,7 @@
 //   supabase secrets set CF_WEBHOOK_SECRET=...   (Cloudflare webhook oluştururken verilen sır)
 // Cloudflare tarafı: Stream → Webhooks → bu fonksiyonun URL'ini ekle.
 import { createClient } from "npm:@supabase/supabase-js@2";
-
-// İmza doğrulama: Webhook-Signature başlığı "time=<ts>,sig1=<hmac>" biçimindedir;
-// HMAC-SHA256("<ts>.<govde>", CF_WEBHOOK_SECRET) ile karşılaştırılır.
-async function imzaGecerliMi(req: Request, govde: string): Promise<boolean> {
-  const sir = Deno.env.get("CF_WEBHOOK_SECRET");
-  if (!sir) return true; // sır tanımlı değilse doğrulamayı atla (geliştirme kolaylığı)
-
-  const baslik = req.headers.get("Webhook-Signature") ?? "";
-  const zaman = baslik.match(/time=(\d+)/)?.[1];
-  const imza = baslik.match(/sig1=([0-9a-f]+)/)?.[1];
-  if (!zaman || !imza) return false;
-
-  const anahtar = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(sir),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-  const ozet = await crypto.subtle.sign(
-    "HMAC",
-    anahtar,
-    new TextEncoder().encode(`${zaman}.${govde}`)
-  );
-  const beklenen = Array.from(new Uint8Array(ozet))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-  return beklenen === imza;
-}
+import { imzaGecerliMi, tier1Tetikle, tier1TetiklenmeliMi } from "./lib.ts";
 
 Deno.serve(async (req) => {
   try {
@@ -50,28 +24,36 @@ Deno.serve(async (req) => {
     const durum: string | undefined = veri?.status?.state;
     if (!uid) return new Response("uid yok", { status: 400 });
 
-    const servis = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const servis = createClient(supabaseUrl, serviceKey);
 
     if (durum === "ready") {
-      // Yalnızca henüz karara bağlanmamış kayıtları incelemeye taşı —
-      // onaylanmış/reddedilmiş bir videoyu webhook geri döndüremez.
-      const { error } = await servis
+      // Yalnızca henüz karara bağlanmamış (uploading/processing) kaydı incelemeye taşı.
+      // .select("id") → GERÇEKTEN geçen satırları döndürür; duplicate/retry'de (zaten in_review)
+      // 0 satır döner → tier1 tetiklenmez. Onaylı/reddedilmiş videoyu webhook geri döndüremez.
+      const { data: guncellenen, error } = await servis
         .from("videos")
         .update({
           status: "in_review",
           duration_seconds: veri?.duration ?? 0,
         })
         .eq("cf_uid", uid)
-        .in("status", ["uploading", "processing"]);
+        .in("status", ["uploading", "processing"])
+        .select("id");
       if (error) {
         console.error("in_review güncellemesi başarısız:", error.message);
         return new Response("guncelleme hatasi", { status: 500 });
       }
+
+      // Tier 1'i YALNIZCA gerçek geçişte tetikle (duplicate-güvenli). Tetikleme hatası
+      // webhook'u düşürmez — zamanlanmış moderate-tier1 taraması kaçanları yakalar.
+      const sayi = guncellenen?.length ?? 0;
+      if (tier1TetiklenmeliMi(durum, sayi)) {
+        await tier1Tetikle(supabaseUrl, serviceKey, guncellenen![0].id);
+      }
     } else if (durum === "error") {
-      // İşleme hatası: kayıt reddedilmiş sayılır, üretici yeniden yükler
+      // İşleme hatası: kayıt reddedilmiş sayılır, üretici yeniden yükler. (tier1 TETİKLENMEZ.)
       await servis
         .from("videos")
         .update({ status: "rejected" })
