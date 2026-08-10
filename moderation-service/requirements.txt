@@ -1,0 +1,9 @@
+fastapi==0.115.*
+uvicorn[standard]==0.32.*
+pydantic==2.*
+requests==2.*
+pillow==11.*
+transformers==4.*
+# CPU çıkarımı yeterli. GPU'suz Fly makinesinde CPU torch kullan (imaj küçülür):
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+torch==2.*

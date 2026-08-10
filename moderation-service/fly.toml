@@ -1,0 +1,22 @@
+# Fly.io — Vaelo moderasyon compute servisi.
+# Neden Fly.io: Docker-native (ffmpeg + torch imajı doğrudan), scale-to-zero
+# (auto_stop_machines → boştayken ücret ~0), basit secret yönetimi, tek bölge yeterli.
+# Alternatifler: Railway (hep-açık, soğuk başlatma yok ama sürekli ücret) / Render.
+# Bursty yükleme trafiği + maliyet → Fly'ın auto-stop'u en uygun; soğuk başlatta model
+# yeniden yüklenir (~10-20 sn). Soğuk başlatma sorun olursa min_machines_running=1 yap.
+app = "vaelo-moderation"
+primary_region = "iad"
+
+[build]
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0   # scale-to-zero; hep-sıcak istenirse 1 yap
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 2
+  memory_mb = 2048           # transformers/torch model belleği için

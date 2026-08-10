@@ -1,0 +1,18 @@
+# TR blocklist — satır başına bir terim/ifade. '#' = yorum. Kelime-sınırlı, harf duyarsız.
+# HARD eşleşme → REJECTED kısa devresi (LLM yok). Yüksek isabetli tut (az yanlış-pozitif):
+# yalnız açıkça ihlal eden terimler. Belirsiz durumlar Tier 2'ye. Perspective TR'de zayıf
+# olduğundan bu liste TR için ekstra önemli. YAPI + tohum küme — ekip genişletir.
+
+# — Cinsel / CSAM (en yüksek isabet; sıfır tolerans) —
+çocuk pornosu
+
+# — Aşırı şiddet / terör —
+bomba nasıl yapılır
+kelle kesme videosu
+
+# — Sert hakaret/nefret (kimlik saldırısı) —
+# (platformun yasaklı-küfür/hakaret listesi buraya; kaynağa saldırgan-terim dökümü
+#  koymamak için boş bırakıldı — özel ops PR / secret-yönetimli dosya ile eklenir.)
+
+# — Küfür (örnek; genişlet) —
+# (yaygın TR küfürleri ekip tarafından eklenecek)

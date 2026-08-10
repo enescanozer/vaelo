@@ -440,6 +440,12 @@ verify_jwt = true
 
 [functions.send-push]
 verify_jwt = true
+
+[functions.moderate-tier1]
+verify_jwt = true
+
+[functions.moderate-tier2]
+verify_jwt = true
 # Bildirim kuyruğunu (push_sent_at boş) mobil cihazlara Expo Push API ile gönderir.
 # Zamanlama: Dashboard → Edge Functions → send-push → Schedule
 # önerilen ifade: */5 * * * *  (secret gerekmez)

@@ -65,6 +65,17 @@ supabase/functions/
                        art_lifecycle_ilerlet() RPC'sini service_role ile çağırır
   send-push/           Zamanlanmış: bildirim kuyruğunu (push_sent_at boş) Expo Push API
                        ile mobil cihazlara gönderir (secret gerekmez)
+  moderate-tier1/      Katmanlı moderasyon Tier 1 orkestrasyonu: compute servisini (Fly.io)
+                       çağırır, ham sinyalleri yazar, KISA DEVRE kararı (reject/approve/
+                       manual/escalate). Medya işleme BURADA DEĞİL. Stream yoksa görsel
+                       otomatik onay VERMEZ → MANUAL_REVIEW. (sql/24 moderation_results)
+  moderate-tier2/      Zamanlanmış: belirsizler için Claude Haiku 4.5 Batch (vision + prompt
+                       cache); işaretli kareleri çeker, 4-kategori skor → final_action eşiği
+                       (APPROVED<0.40 · MANUAL 0.40-0.85 · REJECTED≥0.85). videos.status yalnız
+                       nihai APPROVED/REJECTED'te değişir.
+moderation-service/    Fly.io compute (Workers/Edge ffmpeg/GPU çalıştıramaz): kare çıkarma
+                       (Stream thumbs ya da ffmpeg) + NSFW/şiddet sınıflandırıcı + Perspective +
+                       blocklist. Edge Function HTTP + bearer token ile çağırır. Stream ön koşul.
 supabase/config.toml   CLI yapılandırması (stream-webhook: verify_jwt=false)
 supabase/migrations/   sql/'den ÜRETİLİR (npm run db:sync) — elle düzenleme
 scripts/

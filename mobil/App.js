@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
-  Image,
+  FlatList,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -25,6 +25,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { StatusBar } from "expo-status-bar";
 import { WebView } from "react-native-webview";
 import * as ImagePicker from "expo-image-picker";
+import { Image as ExpoImage } from "expo-image";
+import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -73,6 +75,18 @@ const t = {
 };
 
 const AYAR_ANAHTAR = "latent_mobil_ayarlar";
+
+// Haptik dokunuş yardımcıları — premium his için sekme/CTA etkileşimlerinde.
+// Web'de veya haptics desteklemeyen cihazda sessizce no-op (try/catch).
+function dokunHafif() {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+}
+function dokunOrta() {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+}
+function dokunBasari() {
+  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+}
 
 // Marka gradient — RN'de CSS gradient yok; buton/çip kutularının mutlak-dolgu arka planı
 // olarak kullanılır (kap overflow:hidden + position relative). accent (katı pembe) kenarlık/
@@ -126,7 +140,10 @@ function AltNavOge({ sk, etiket, aktif, bas }) {
   return (
     <TouchableOpacity
       style={s.altNavOge}
-      onPress={bas}
+      onPress={() => {
+        dokunHafif();
+        bas();
+      }}
       activeOpacity={0.8}
       accessibilityRole="button"
       accessibilityState={{ selected: aktif }}
@@ -168,9 +185,10 @@ function ProfilEkrani({ d, user, dil, setDil, ayarlar, setAyarlar, girisAc }) {
   );
   return (
     <ScrollView style={s.kap} contentContainerStyle={{ padding: 16, paddingBottom: 130 }}>
-      <Image
+      <ExpoImage
         source={require("./assets/vaelo_horizontal_lockup_transparent.png")}
-        style={{ height: 24, width: 77, resizeMode: "contain", marginBottom: 18 }}
+        style={{ height: 24, width: 77, marginBottom: 18 }}
+        contentFit="contain"
         accessibilityLabel="Vaelo"
       />
       {user ? (
@@ -219,7 +237,7 @@ function Gecit({ d, tip, user, girisAc }) {
   const mesaj = tip === "upload" ? d.gecitUpload : d.gecitStudio;
   return (
     <View style={[s.kap, { alignItems: "center", justifyContent: "center", padding: 32, paddingBottom: 120 }]}>
-      <Ionicons name={ikon} size={46} color={t.dim} />
+      <Ionicons name={ikon} size={46} color={t.dim} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
       <Text style={[s.modalBaslik, { marginTop: 16, textAlign: "center" }]}>{baslik}</Text>
       <Text style={[s.dim, { textAlign: "center", marginTop: 8, lineHeight: 20 }]}>{mesaj}</Text>
       {!user && (
@@ -256,6 +274,21 @@ function guvenliUrl(ham) {
   } catch {
     return null;
   }
+}
+
+// Katalog client-side önbelleği — web'deki 60 sn TTL ile aynı: sekme değişiminde
+// (home↔discover) veya remount'ta gereksiz yeniden fetch'i önler. Modül seviyesinde
+// tutulur ki App yeniden mount olsa da (nadir) süre içinde tazeliğini korusun.
+let katalogOnbellek = { veri: null, zaman: 0 };
+const KATALOG_TTL_MS = 60_000;
+async function getCatalogOnbellekli() {
+  const simdi = Date.now();
+  if (katalogOnbellek.veri && simdi - katalogOnbellek.zaman < KATALOG_TTL_MS) {
+    return katalogOnbellek.veri;
+  }
+  const veri = await getCatalog();
+  katalogOnbellek = { veri, zaman: Date.now() };
+  return veri;
 }
 
 export default function App() {
@@ -410,6 +443,7 @@ function SifreYenileModal({ d, kapat }) {
     const { error } = await sifreGuncelle(sifre);
     setBekliyor(false);
     if (error) return setHata(error.message);
+    dokunBasari();
     setMesaj(d.sifreGuncellendi);
     setTimeout(kapat, 1500); // kullanıcı mesajı görsün; artık yeni şifreyle girmiş durumda
   }
@@ -553,8 +587,13 @@ function AuthModal({ d, kapat }) {
       if (!kayit && /invalid login/i.test(error.message)) return setHata(d.girisGecersiz);
       return setHata(error.message);
     }
-    if (kayit) setMesaj(d.kayitAlindi);
-    else kapat(); // giriş başarılı → onAuthStateChange kullanıcıyı günceller
+    if (kayit) {
+      dokunBasari();
+      setMesaj(d.kayitAlindi);
+    } else {
+      dokunBasari();
+      kapat(); // giriş başarılı → onAuthStateChange kullanıcıyı günceller
+    }
   }
 
   async function googleGiris() {
@@ -687,6 +726,51 @@ function AuthModal({ d, kapat }) {
   );
 }
 
+// ————— İskelet yükleme: katalog gelene kadar nabız animasyonlu placeholder —————
+// Basit opaklık nabzı (700ms git-gel, useNativeDriver) — spinner yerine "içerik geliyor"
+// hissi verir; web'deki skeleton ile aynı amaç.
+function NabizKutu({ style }) {
+  const anim = useRef(new Animated.Value(0.35)).current;
+  useEffect(() => {
+    const dongu = Animated.loop(
+      Animated.sequence([
+        Animated.timing(anim, { toValue: 0.7, duration: 700, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 0.35, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    dongu.start();
+    return () => dongu.stop();
+  }, []);
+  return (
+    <Animated.View
+      style={[{ backgroundColor: t.surface2, borderRadius: 8 }, style, { opacity: anim }]}
+    />
+  );
+}
+function AnaIskelet() {
+  return (
+    <View style={s.kap}>
+      <View style={[s.ustSatir, { paddingTop: 12 }]}>
+        <NabizKutu style={{ width: 77, height: 24, borderRadius: 4 }} />
+        <NabizKutu style={{ width: 96, height: 28, borderRadius: 14 }} />
+      </View>
+      <NabizKutu style={{ height: 40, marginHorizontal: 16, marginTop: 16 }} />
+      <NabizKutu style={{ width: "100%", height: 210, marginTop: 20, borderRadius: 0 }} />
+      <View style={{ paddingHorizontal: 16, gap: 8, marginTop: 12 }}>
+        <NabizKutu style={{ width: "70%", height: 22 }} />
+        <NabizKutu style={{ width: "40%", height: 14 }} />
+      </View>
+      {[1, 2, 3].map((i) => (
+        <View key={i} style={{ paddingHorizontal: 16, marginTop: 28 }}>
+          <NabizKutu style={{ width: "100%", aspectRatio: 16 / 9, borderRadius: 10 }} />
+          <NabizKutu style={{ width: "60%", height: 18, marginTop: 10 }} />
+          <NabizKutu style={{ width: "35%", height: 12, marginTop: 6 }} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
 // ————— Ana: hero + açıklamalı dikey akış + akıllı arama —————
 function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac, aramaOdak }) {
   const aramaRef = useRef(null);
@@ -705,7 +789,7 @@ function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac, aramaOdak }) {
   const [listem, setListem] = useState([]);
 
   useEffect(() => {
-    getCatalog().then(setKatalog).catch((e) => setHata(e.message));
+    getCatalogOnbellekli().then(setKatalog).catch((e) => setHata(e.message));
   }, []);
 
   // Girişli kullanıcının devam et + Listem rafları
@@ -747,7 +831,7 @@ function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac, aramaOdak }) {
   }, [arama]);
 
   if (hata) return <Durum d={d} mesaj={d.sunucuYok(hata)} />;
-  if (!katalog) return <Durum d={d} yukleniyor />;
+  if (!katalog) return <AnaIskelet />;
 
   const hero = katalog[0];
   // Hero zaten en üstte; dikey akış kalanları açıklamalarıyla listeler
@@ -807,139 +891,208 @@ function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac, aramaOdak }) {
     </View>
   );
 
+  // Marka + dil anahtarı + giriş/çıkış — üç modda da (arama/filtre/varsayılan) aynı üst çubuk
+  const ustCubuk = (
+    <View style={s.ustSatir}>
+      <ExpoImage
+        source={require("./assets/vaelo_horizontal_lockup_transparent.png")}
+        style={{ height: 24, width: 77 }}
+        contentFit="contain"
+        accessibilityLabel="Vaelo"
+      />
+      <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+        <TouchableOpacity
+          style={s.dilDugme}
+          onPress={tabloAc}
+          accessibilityRole="button"
+          accessibilityLabel={d.tablo.etiket}
+        >
+          <Text style={s.dilYazi}>{d.tablo.etiket}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={s.dilDugme}
+          onPress={ayarlarAc}
+          accessibilityRole="button"
+          accessibilityLabel={d.ayarlar || "Ayarlar"}
+        >
+          <Text style={[s.dilYazi, { fontSize: 15 }]}>⚙</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={s.dilDugme}
+          onPress={() => (user ? signOut() : girisAc())}
+          accessibilityRole="button"
+          accessibilityLabel={user ? d.cikis : d.girisYap}
+        >
+          <Text style={s.dilYazi}>{user ? d.cikis : d.girisYap}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+  const aramaKutusu = (
+    <TextInput
+      ref={aramaRef}
+      style={s.arama}
+      placeholder={d.ara}
+      placeholderTextColor={t.dim}
+      value={arama}
+      onChangeText={setArama}
+    />
+  );
+  const heroBlok = hero && (
+    <>
+      {/* Kişisel raflar (girişli) */}
+      {devam.length > 0 && (
+        <YatayRaf
+          d={d}
+          ad={d.devamEt}
+          ogeler={devam.map((o) => ({ baslik: o.baslik, bas: () => oynat(o.video, o.baslik) }))}
+        />
+      )}
+      {listem.length > 0 && (
+        <YatayRaf
+          d={d}
+          ad={d.listem}
+          ogeler={listem.map((b) => ({ baslik: b, bas: () => ac(b.id) }))}
+        />
+      )}
+
+      {/* Hero */}
+      <TouchableOpacity style={s.hero} onPress={() => ac(hero.id)} activeOpacity={0.85}>
+        {thumbUrl(hero.videos[0]?.cf_uid) ? (
+          <ExpoImage
+            source={{ uri: thumbUrl(hero.videos[0].cf_uid) }}
+            style={s.heroKapak}
+            cachePolicy="memory-disk"
+            transition={200}
+          />
+        ) : (
+          <View
+            style={[
+              s.heroKapak,
+              {
+                opacity: 1,
+                backgroundColor: `hsl(${adTonu(hero.name || "?")}, 44%, 18%)`,
+                alignItems: "center",
+                justifyContent: "center",
+              },
+            ]}
+          >
+            <Text
+              style={{
+                fontSize: 120,
+                fontWeight: "800",
+                color: `hsl(${adTonu(hero.name || "?")}, 58%, 44%)`,
+                opacity: 0.4,
+              }}
+            >
+              {(hero.name?.[0] || "?").toUpperCase()}
+            </Text>
+          </View>
+        )}
+        <View style={s.heroGovde}>
+          <Text style={s.ustBilgi}>
+            {[hero.kind === "dizi" ? d.DIZI : d.FILM, hero.genre, hero.year]
+              .filter(Boolean)
+              .join(" · ")}
+          </Text>
+          <Text style={s.heroAd}>{hero.name}</Text>
+          {!!hero.description && (
+            <Text style={s.dim} numberOfLines={2}>
+              {hero.description}
+            </Text>
+          )}
+          <View style={s.izleDugme}>
+            <Gradyan />
+            <Text style={s.izleYazi}>{d.izle}</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    </>
+  );
+
+  // Mod 1: akıllı arama sonuçları — sanallaştırılmış liste
+  if (sonuclar !== null) {
+    return (
+      <FlatList
+        style={s.kap}
+        contentContainerStyle={{ paddingBottom: 120 }}
+        keyboardShouldPersistTaps="handled"
+        data={sonuclar}
+        keyExtractor={(b) => String(b.id)}
+        renderItem={({ item }) => (
+          <View style={{ paddingHorizontal: 16 }}>
+            <SonucSatiri d={d} baslik={item} ac={ac} />
+          </View>
+        )}
+        ListHeaderComponent={
+          <>
+            {ustCubuk}
+            {aramaKutusu}
+            <View style={{ paddingHorizontal: 16 }}>
+              <Text style={s.rafBaslik}>{d.sonuclar}</Text>
+              {sonuclar.length === 0 && <Text style={s.dim}>{d.sonucYok}</Text>}
+            </View>
+          </>
+        }
+        initialNumToRender={8}
+        windowSize={7}
+      />
+    );
+  }
+
+  // Mod 2: tip/tür filtresi aktif — sanallaştırılmış ızgara (tek sütun)
+  if (suzgecAktif) {
+    return (
+      <FlatList
+        style={s.kap}
+        contentContainerStyle={{ paddingBottom: 120 }}
+        keyboardShouldPersistTaps="handled"
+        data={suzulmus}
+        keyExtractor={(b) => String(b.id)}
+        renderItem={({ item }) => (
+          <View style={{ paddingHorizontal: 16 }}>
+            <AkisKarti d={d} baslik={item} ac={ac} gomulu />
+          </View>
+        )}
+        ListHeaderComponent={
+          <>
+            {ustCubuk}
+            {aramaKutusu}
+            {filtreCubugu}
+            <View style={{ paddingHorizontal: 16 }}>
+              <Text style={s.rafBaslik}>{d.baslikSayisi(suzulmus.length)}</Text>
+              {suzulmus.length === 0 && <Text style={s.dim}>{d.sonucYok}</Text>}
+            </View>
+          </>
+        }
+        initialNumToRender={6}
+        windowSize={7}
+      />
+    );
+  }
+
+  // Mod 3: varsayılan — hero + açıklamalı dikey akış (sanallaştırılmış)
   return (
-    <ScrollView
+    <FlatList
       style={s.kap}
       contentContainerStyle={{ paddingBottom: 120 }}
       keyboardShouldPersistTaps="handled"
-    >
-      {/* Marka + dil anahtarı + giriş/çıkış */}
-      <View style={s.ustSatir}>
-        <Image
-          source={require("./assets/vaelo_horizontal_lockup_transparent.png")}
-          style={{ height: 24, width: 77, resizeMode: "contain" }}
-          accessibilityLabel="Vaelo"
-        />
-        <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-          <TouchableOpacity style={s.dilDugme} onPress={tabloAc}>
-            <Text style={s.dilYazi}>{d.tablo.etiket}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.dilDugme} onPress={ayarlarAc}>
-            <Text style={[s.dilYazi, { fontSize: 15 }]}>⚙</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.dilDugme} onPress={() => (user ? signOut() : girisAc())}>
-            <Text style={s.dilYazi}>{user ? d.cikis : d.girisYap}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-      <TextInput
-        ref={aramaRef}
-        style={s.arama}
-        placeholder={d.ara}
-        placeholderTextColor={t.dim}
-        value={arama}
-        onChangeText={setArama}
-      />
-
-      {sonuclar !== null ? (
-        <View style={{ paddingHorizontal: 16 }}>
-          <Text style={s.rafBaslik}>{d.sonuclar}</Text>
-          {sonuclar.length === 0 && <Text style={s.dim}>{d.sonucYok}</Text>}
-          {sonuclar.map((b) => (
-            <SonucSatiri key={b.id} d={d} baslik={b} ac={ac} />
-          ))}
-        </View>
-      ) : (
+      data={akis}
+      keyExtractor={(b) => String(b.id)}
+      renderItem={({ item }) => <AkisKarti d={d} baslik={item} ac={ac} />}
+      ListHeaderComponent={
         <>
+          {ustCubuk}
+          {aramaKutusu}
           {filtreCubugu}
-
-          {suzgecAktif ? (
-            <View style={{ paddingHorizontal: 16 }}>
-              <Text style={s.rafBaslik}>{d.baslikSayisi(suzulmus.length)}</Text>
-              {suzulmus.length === 0 ? (
-                <Text style={s.dim}>{d.sonucYok}</Text>
-              ) : (
-                suzulmus.map((baslik) => (
-                  <AkisKarti key={baslik.id} d={d} baslik={baslik} ac={ac} gomulu />
-                ))
-              )}
-            </View>
-          ) : !hero ? (
-            <Durum d={d} mesaj={d.icerikYok} />
-          ) : (
-            <>
-              {/* Kişisel raflar (girişli) */}
-              {devam.length > 0 && (
-                <YatayRaf
-                  d={d}
-                  ad={d.devamEt}
-                  ogeler={devam.map((o) => ({ baslik: o.baslik, bas: () => oynat(o.video, o.baslik) }))}
-                />
-              )}
-              {listem.length > 0 && (
-                <YatayRaf
-                  d={d}
-                  ad={d.listem}
-                  ogeler={listem.map((b) => ({ baslik: b, bas: () => ac(b.id) }))}
-                />
-              )}
-
-              {/* Hero */}
-              <TouchableOpacity style={s.hero} onPress={() => ac(hero.id)} activeOpacity={0.85}>
-                {thumbUrl(hero.videos[0]?.cf_uid) ? (
-                  <Image source={{ uri: thumbUrl(hero.videos[0].cf_uid) }} style={s.heroKapak} />
-                ) : (
-                  <View
-                    style={[
-                      s.heroKapak,
-                      {
-                        opacity: 1,
-                        backgroundColor: `hsl(${adTonu(hero.name || "?")}, 44%, 18%)`,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 120,
-                        fontWeight: "800",
-                        color: `hsl(${adTonu(hero.name || "?")}, 58%, 44%)`,
-                        opacity: 0.4,
-                      }}
-                    >
-                      {(hero.name?.[0] || "?").toUpperCase()}
-                    </Text>
-                  </View>
-                )}
-                <View style={s.heroGovde}>
-                  <Text style={s.ustBilgi}>
-                    {[hero.kind === "dizi" ? d.DIZI : d.FILM, hero.genre, hero.year]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </Text>
-                  <Text style={s.heroAd}>{hero.name}</Text>
-                  {!!hero.description && (
-                    <Text style={s.dim} numberOfLines={2}>
-                      {hero.description}
-                    </Text>
-                  )}
-                  <View style={s.izleDugme}>
-                    <Gradyan />
-            <Text style={s.izleYazi}>{d.izle}</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-
-              {/* Açıklamalı dikey akış */}
-              {akis.map((baslik) => (
-                <AkisKarti key={baslik.id} d={d} baslik={baslik} ac={ac} />
-              ))}
-            </>
-          )}
+          {heroBlok}
         </>
-      )}
-    </ScrollView>
+      }
+      ListEmptyComponent={!hero ? <Durum d={d} mesaj={d.icerikYok} /> : null}
+      initialNumToRender={4}
+      windowSize={5}
+      maxToRenderPerBatch={4}
+    />
   );
 }
 
@@ -954,7 +1107,15 @@ function adTonu(ad = "?") {
 }
 function Kapak({ baslik, harf = 34, adGoster = false }) {
   const url = thumbUrl(baslik.videos?.[0]?.cf_uid);
-  if (url) return <Image source={{ uri: url }} style={{ width: "100%", height: "100%" }} />;
+  if (url)
+    return (
+      <ExpoImage
+        source={{ uri: url }}
+        style={{ width: "100%", height: "100%" }}
+        cachePolicy="memory-disk"
+        transition={150}
+      />
+    );
   const h = adTonu(baslik.name || "?");
   return (
     <View style={{ width: "100%", height: "100%", backgroundColor: `hsl(${h}, 44%, 20%)`, justifyContent: "flex-end" }}>
@@ -1076,7 +1237,13 @@ function Detay({ d, id, user, girisAc, oynat, geri }) {
 
       <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         {!dizi && baslik.videos[0] && (
-          <TouchableOpacity style={s.izleDugme} onPress={() => oynat(baslik.videos[0], baslik)}>
+          <TouchableOpacity
+            style={s.izleDugme}
+            onPress={() => {
+              dokunOrta();
+              oynat(baslik.videos[0], baslik);
+            }}
+          >
             <Gradyan />
             <Text style={s.izleYazi}>{d.filmiIzle}</Text>
           </TouchableOpacity>
@@ -1095,7 +1262,10 @@ function Detay({ d, id, user, girisAc, oynat, geri }) {
           <TouchableOpacity
             key={video.id}
             style={s.bolumSatiri}
-            onPress={() => oynat(video, baslik)}
+            onPress={() => {
+              dokunHafif();
+              oynat(video, baslik);
+            }}
             activeOpacity={0.85}
           >
             <Text style={[s.dim, { width: 52 }]}>
@@ -1329,6 +1499,7 @@ function ArtGonderim({ d, hafta, user, girisAc }) {
       const guvenli = guvenliUrl(sosyal);
       const linkler = guvenli ? [{ tur: "link", url: guvenli }] : [];
       await eserGonder(hafta.id, user.id, varlik, aciklama, linkler);
+      dokunBasari();
       setDurum("oldu");
       getBenimEserim(hafta.id).then(setBenim).catch(() => {});
     } catch {
@@ -1348,7 +1519,7 @@ function ArtGonderim({ d, hafta, user, girisAc }) {
         </TouchableOpacity>
       ) : benim ? (
         <View>
-          <Image source={{ uri: benim.url }} style={s.artGorsel} resizeMode="contain" />
+          <ExpoImage source={{ uri: benim.url }} style={s.artGorsel} contentFit="contain" cachePolicy="memory-disk" />
           <Text style={[s.dim, { marginTop: 10, color: t.accent }]}>{d.tablo.zatenGonderdin}</Text>
         </View>
       ) : durum === "oldu" ? (
@@ -1359,7 +1530,7 @@ function ArtGonderim({ d, hafta, user, girisAc }) {
         <View>
           <TouchableOpacity style={s.artSecKutu} onPress={gorselSec} activeOpacity={0.85}>
             {varlik ? (
-              <Image source={{ uri: varlik.uri }} style={s.artGorsel} resizeMode="contain" />
+              <ExpoImage source={{ uri: varlik.uri }} style={s.artGorsel} contentFit="contain" cachePolicy="memory-disk" />
             ) : (
               <Text style={s.dim}>＋ {d.tablo.eserSec}</Text>
             )}
@@ -1428,6 +1599,7 @@ function ArtEleme({ d, hafta, user, girisAc }) {
   }, [user?.id, hafta.id, hafta.tur]);
 
   async function oyVer(pieceId) {
+    dokunBasari();
     setOyluIds((e) => [...e, pieceId]);
     await artOyVer(pieceId, user.id, hafta.tur);
   }
@@ -1457,7 +1629,7 @@ function ArtEleme({ d, hafta, user, girisAc }) {
           const oyladi = oyluIds.includes(e.id);
           return (
             <View key={e.id} style={{ marginBottom: 20 }}>
-              <Image source={{ uri: e.url }} style={s.artGorsel} resizeMode="contain" />
+              <ExpoImage source={{ uri: e.url }} style={s.artGorsel} contentFit="contain" cachePolicy="memory-disk" />
               <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
                 <TouchableOpacity
                   style={[s.artOyDugme, oyladi && { backgroundColor: t.accent, borderColor: t.accent }]}
@@ -1489,6 +1661,7 @@ function ArtSergi({ d, hafta, user, girisAc }) {
 
   async function puanla(pieceId) {
     if (!user) return girisAc();
+    dokunBasari();
     setOyluIds((e) => [...e, pieceId]);
     await artOyVer(pieceId, user.id, 999);
   }
@@ -1507,7 +1680,7 @@ function ArtSergi({ d, hafta, user, girisAc }) {
           return (
             <View key={e.id} style={{ marginBottom: 24 }}>
               <Text style={[s.dim, { fontWeight: "800", color: t.accent }]}>#{i + 1}</Text>
-              <Image source={{ uri: e.url }} style={s.artGorsel} resizeMode="contain" />
+              <ExpoImage source={{ uri: e.url }} style={s.artGorsel} contentFit="contain" cachePolicy="memory-disk" />
               <Text style={{ color: t.text, fontWeight: "700", fontSize: 15, marginTop: 8 }}>
                 {e.sahip_ad || d.tablo.anonim}
               </Text>

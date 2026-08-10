@@ -1,0 +1,20 @@
+# EN blocklist — one term/phrase per line. '#' = comment. Word-boundary, case-insensitive.
+# HARD match → REJECTED short-circuit (no LLM). Keep this list high-precision (few false
+# positives): only unambiguous policy-violating terms. Nuanced cases belong to Tier 2.
+# This is a STRUCTURE + seed set — the trust & safety team expands it. Categories below.
+
+# — Sexual / CSAM (highest precision; zero tolerance) —
+child porn
+cp offer
+
+# — Extreme violence / terror —
+beheading video
+how to build a bomb
+
+# — Hard slurs (identity attacks) —
+# (populate with the platform's disallowed-slur list; kept empty here to avoid shipping
+#  an offensive-term dump in source — add via a private ops PR / secret-managed file.)
+
+# — Strong profanity (illustrative; expand) —
+fuck
+motherfucker
