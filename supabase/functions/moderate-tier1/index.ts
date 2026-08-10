@@ -17,22 +17,26 @@ const yanit = (g: unknown, s = 200) =>
 // Kaba dil tahmini (titles'ta dil alanı yok) — TR'ye özgü harfler → tr. İleride gerçek tespit.
 const dilTahmin = (metin: string) => (/[ğşıçöü]/i.test(metin) ? "tr" : "en");
 
-// KISA DEVRE: 'rejected' | 'approved' | 'manual' | 'escalate'
-function tier1Karar(sc: any, framesAvailable: boolean): string {
+// KISA DEVRE: 'rejected' | 'approved' | 'escalate'
+// GÜVENLİK: görsel skor (nudity/violence) NULL olabilir (kare yok = Stream entegre değil).
+// null → görsel BİLİNMİYOR → asla "temiz" sayılmaz → APPROVED kısa devresi TETİKLENMEZ; escalate.
+// (Metin sinyalleri tek başına görsel içerik onayına yetmez.)
+function tier1Karar(sc: any): string {
+  // Reject için null'ı 0 say (bilinmeyen tek başına reddi tetiklemez).
   const gorselMax = Math.max(sc.nudity ?? 0, sc.violence ?? 0);
-  const hepsi = [sc.nudity, sc.violence, sc.hate_politics, sc.profanity, sc.toxicity].map(
-    (x) => x ?? 0,
-  );
-  // Kesin yüksek sinyal → LLM'siz REJECTED
   if (gorselMax >= 0.9 || sc.keyword_hit === true) return "rejected";
-  // Hepsi net düşük (<0.3) + blocklist temiz → LLM'siz APPROVED
-  const temiz = hepsi.every((x) => x < 0.3) && sc.keyword_hit !== true;
+
+  // APPROVED için görsel MUTLAKA bilinmeli (frames_available + sayısal) ve düşük olmalı.
+  const gorselTemiz =
+    sc.frames_available === true &&
+    typeof sc.nudity === "number" && sc.nudity < 0.3 &&
+    typeof sc.violence === "number" && sc.violence < 0.3;
+  const metinTemiz =
+    (sc.hate_politics ?? 0) < 0.3 && (sc.profanity ?? 0) < 0.3 && (sc.toxicity ?? 0) < 0.3;
   const trBelirsiz = sc.perspective_low_confidence === true; // TR düşük güven → otomatik onaylama
-  if (temiz && !trBelirsiz) {
-    // GÜVENLİK: kare yoksa (Stream entegre değil) görsel doğrulanamaz → otomatik ONAY YOK.
-    // Admin izlesin (MANUAL_REVIEW). Stream bağlanınca frames_available=true → gerçek APPROVED.
-    return framesAvailable ? "approved" : "manual";
-  }
+
+  if (gorselTemiz && metinTemiz && sc.keyword_hit !== true && !trBelirsiz) return "approved";
+  // Görsel bilinmiyor / yüksek belirsizlik → Tier 2 (kare yoksa Tier 2 MANUAL_REVIEW'e düşürür).
   return "escalate";
 }
 
@@ -61,10 +65,9 @@ async function birVideoIsle(servis: any, video: any) {
 
   const sc = tier1?.tier1_scores ?? { frames_available: false };
   const flagged = tier1?.flagged_timestamps ?? [];
-  const framesAvailable = sc.frames_available === true;
 
   // Compute başarısızsa hiç sinyal yok → admin incelesin
-  const verdict = tier1 ? tier1Karar(sc, framesAvailable) : "manual";
+  const verdict = tier1 ? tier1Karar(sc) : "manual";
 
   // verdict → final_action / needs_tier2 / status / videos.status
   let finalAction: string | null = null;

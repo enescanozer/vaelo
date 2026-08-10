@@ -494,6 +494,45 @@ export async function getCreatorBasvurular() {
   const { data } = await supabase.rpc("creator_basvuru_listesi");
   return data ?? [];
 }
+// ————— Moderasyon kuyruğu (Panel) —————
+// Elle inceleme (final_action=MANUAL_REVIEW) + Tier 2 bekleyenler (needs_tier2 + pending/
+// processing = "İnceleniyor"). En eski önce. RLS: moderation_results yalnız is_moderator() okur.
+export async function getModerasyonKuyrugu() {
+  const { data, error } = await supabase
+    .from("moderation_results")
+    .select(
+      "*, videos(id, title_id, cf_uid, name, season, episode, titles(name, kind, creator_id))"
+    )
+    .or("final_action.eq.MANUAL_REVIEW,and(needs_tier2.eq.true,status.in.(pending,processing))")
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+// Kuyruktan karar: video approved/rejected + (onayda) taslak başlık published +
+// moderation_results final_action/status. videos.status değişimi audit_log'u tetikler (kim/ne zaman).
+export async function moderasyonKarar(mr, onay) {
+  const simdi = new Date().toISOString();
+  const video = mr.videos;
+  if (onay) {
+    const { error } = await supabase
+      .from("videos").update({ status: "approved", published_at: simdi }).eq("id", video.id);
+    if (error) return { error };
+    await supabase
+      .from("titles").update({ status: "published", published_at: simdi })
+      .eq("id", video.title_id).eq("status", "draft");
+    katalogTazele();
+  } else {
+    const { error } = await supabase.from("videos").update({ status: "rejected" }).eq("id", video.id);
+    if (error) return { error };
+  }
+  await supabase
+    .from("moderation_results")
+    .update({ final_action: onay ? "APPROVED" : "REJECTED", status: "complete" })
+    .eq("id", mr.id);
+  return { error: null };
+}
+
 export async function creatorOnayla(userId) {
   return supabase.rpc("creator_onayla", { p_user: userId });
 }

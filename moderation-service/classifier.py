@@ -39,6 +39,13 @@ def _skor(pipe, img, pozitif_etiketler) -> float:
 
 
 def kareleri_skorla(kareler) -> dict:
+    # GÜVENLİK: kare yok (Stream entegre değil / çıkarılamadı) → görsel skor BİLİNMİYOR (null),
+    # 0/"temiz" DEĞİL. Edge Function null'ı temiz saymaz → Tier 2'ye escalate; asla APPROVED
+    # kısa devresini (tüm skorlar <0.3) tetiklemez. Metin sinyalleri (Perspective+blocklist)
+    # tek başına GÖRSEL içerik onayına yetmez.
+    if not kareler:
+        return {"nudity": None, "violence": None, "flagged": [],
+                "frames_sampled": 0, "frames_available": False}
     _ensure()
     nud = viol = 0.0
     flagged = []

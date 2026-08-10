@@ -2,7 +2,15 @@
 // yönetimi ve denetim kaydı YALNIZ admin (owner). Erişim RLS'te: is_moderator / is_admin.
 import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
-import { iframeUrl, katalogTazele, getCreatorBasvurular, creatorOnayla, creatorReddet } from "./catalog";
+import {
+  iframeUrl,
+  katalogTazele,
+  getCreatorBasvurular,
+  creatorOnayla,
+  creatorReddet,
+  getModerasyonKuyrugu,
+  moderasyonKarar,
+} from "./catalog";
 import { useLang } from "./i18n";
 import { t } from "./theme";
 
@@ -197,6 +205,9 @@ export default function AdminPanel({ admin }) {
         ))}
       </div>
 
+      {/* Moderasyon kuyruğu (MANUAL_REVIEW + Tier 2 bekleyen) — moderatör + admin görür */}
+      <ModerasyonKuyrugu />
+
       {/* Gelir/yarışma/rol/denetim yalnız admin (owner); moderatör yalnız inceleme kuyruğu */}
       {admin && (
         <>
@@ -207,6 +218,189 @@ export default function AdminPanel({ admin }) {
           <DenetimKaydi />
         </>
       )}
+    </div>
+  );
+}
+
+// saniye → m:ss
+function sureBicim(sn) {
+  const x = Math.max(0, Math.floor(Number(sn) || 0));
+  return `${Math.floor(x / 60)}:${String(x % 60).padStart(2, "0")}`;
+}
+
+// ————— Moderasyon kuyruğu (moderatör + admin): elle inceleme + Tier 2 bekleyenler —————
+// Kaynak: moderation_results (Tier 1/2 boru hattı). Onay/Ret video status'unu günceller
+// (mevcut audit_log tetikleyicisi kim/ne zaman'ı yakalar) + moderation_results'ı işaretler.
+function ModerasyonKuyrugu() {
+  const { s } = useLang();
+  const [liste, setListe] = useState(null);
+  const [hata, setHata] = useState(null);
+  const [islemde, setIslemde] = useState(null);
+
+  async function yenile() {
+    try {
+      setListe(await getModerasyonKuyrugu());
+    } catch (e) {
+      setHata(e.message);
+      setListe([]);
+    }
+  }
+  useEffect(() => {
+    yenile();
+  }, []);
+
+  async function karar(mr, onay) {
+    setIslemde(mr.id);
+    const { error } = await moderasyonKarar(mr, onay);
+    if (error) setHata(error.message);
+    setIslemde(null);
+    yenile();
+  }
+
+  // Skor bandı: yeşil <0.40 · amber 0.40–0.85 · kırmızı ≥0.85 · null/bilinmiyor gri
+  function bandRenk(v) {
+    if (v == null) return t.dim;
+    if (v >= 0.85) return t.danger;
+    if (v >= 0.4) return "#E5B23C"; // amber (anlamsal risk bandı — marka aksanı değil)
+    return "#3FB463"; // green
+  }
+  const KATEGORILER = ["nudity", "violence", "hate_politics", "profanity"];
+
+  if (liste === null) return null; // ilk yükleme sessiz
+
+  return (
+    <div style={{ marginTop: 48 }}>
+      <div style={{ fontFamily: t.display, fontWeight: 700, fontSize: 18, marginBottom: 6 }}>
+        {s.panel.mod.baslik}
+      </div>
+      <div style={{ color: t.dim, fontSize: 13, marginBottom: 16 }}>{s.panel.mod.aciklama}</div>
+      {hata && <div style={{ color: t.danger, fontSize: 13, marginBottom: 12 }}>{hata}</div>}
+      {liste.length === 0 && (
+        <div style={{ color: t.dim, padding: "24px 0", textAlign: "center" }}>{s.panel.mod.bos}</div>
+      )}
+
+      <div style={{ display: "grid", gap: 14 }}>
+        {liste.map((mr) => {
+          const v = mr.videos;
+          const bekliyor = mr.final_action !== "MANUAL_REVIEW"; // pending/processing → İnceleniyor
+          const skorlar = mr.tier2_scores ?? mr.tier1_scores ?? {};
+          return (
+            <div
+              key={mr.id}
+              style={{ background: t.surface, border: `1px solid ${t.line}`, borderRadius: 10, padding: 16 }}
+            >
+              <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
+                <span style={{ fontFamily: t.display, fontWeight: 700, fontSize: 16 }}>
+                  {v?.titles?.name}
+                </span>
+                <span style={{ color: t.dim, fontSize: 12 }}>
+                  {v?.titles?.kind === "dizi"
+                    ? `${s.genel.seb(v.season ?? 1, v.episode ?? 1)}${v.name ? ` — ${v.name}` : ""}`
+                    : s.genel.film}
+                </span>
+                {v?.titles?.creator_id && (
+                  <span style={{ color: t.dim, fontSize: 11 }}>@{v.titles.creator_id.slice(0, 8)}</span>
+                )}
+                <span style={{ color: t.dim, fontSize: 12, marginLeft: "auto" }}>
+                  {new Date(mr.created_at).toLocaleString(s.locale)}
+                </span>
+              </div>
+
+              {/* Kategori rozetleri (tier2 varsa o, yoksa tier1) */}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                {KATEGORILER.map((k) => {
+                  const val = skorlar[k];
+                  return (
+                    <span
+                      key={k}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        border: `1px solid ${t.line}`,
+                        borderRadius: 6,
+                        padding: "3px 9px",
+                        fontSize: 12,
+                      }}
+                    >
+                      <span style={{ color: t.dim }}>{s.panel.mod.kategori[k]}</span>
+                      <span style={{ color: bandRenk(val), fontWeight: 700 }}>
+                        {val == null ? s.panel.mod.bilinmiyor : Number(val).toFixed(2)}
+                      </span>
+                    </span>
+                  );
+                })}
+              </div>
+
+              {mr.reasoning && (
+                <div style={{ color: t.dim, fontSize: 13, marginBottom: 8 }}>
+                  {s.panel.mod.gerekce}: {mr.reasoning}
+                </div>
+              )}
+
+              {Array.isArray(mr.flagged_timestamps) && mr.flagged_timestamps.length > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 6,
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                    marginBottom: 10,
+                    fontSize: 12,
+                    color: t.dim,
+                  }}
+                >
+                  <span>{s.panel.mod.kareler}:</span>
+                  {mr.flagged_timestamps.map((f, i) => (
+                    <span key={i} style={{ border: `1px solid ${t.line}`, borderRadius: 6, padding: "2px 7px" }}>
+                      {sureBicim(f.t)}
+                      {f.reason ? ` · ${s.panel.mod.kategori[f.reason] ?? f.reason}` : ""}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {bekliyor ? (
+                <div style={{ color: t.accent, fontSize: 13, fontWeight: 600 }}>{s.panel.mod.inceleniyor}</div>
+              ) : (
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button
+                    onClick={() => karar(mr, true)}
+                    disabled={islemde === mr.id}
+                    style={{
+                      background: t.gradient,
+                      color: "#0A0A0B",
+                      border: "none",
+                      borderRadius: 8,
+                      padding: "9px 18px",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      opacity: islemde === mr.id ? 0.6 : 1,
+                    }}
+                  >
+                    {s.panel.onayla}
+                  </button>
+                  <button
+                    onClick={() => karar(mr, false)}
+                    disabled={islemde === mr.id}
+                    style={{
+                      background: "none",
+                      border: `1px solid ${t.line}`,
+                      borderRadius: 8,
+                      color: t.danger,
+                      padding: "9px 18px",
+                      fontSize: 13,
+                      opacity: islemde === mr.id ? 0.6 : 1,
+                    }}
+                  >
+                    {s.panel.reddet}
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
