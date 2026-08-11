@@ -67,6 +67,29 @@ export async function getPromoBanner() {
   }
 }
 
+// ————— Video halk oylaması (1–10) —————
+export async function getVideoPuan(videoId, userId = null) {
+  const [ozet, kendi] = await Promise.all([
+    supabase.rpc("video_puan_ozet", { p_video: videoId }),
+    userId
+      ? supabase
+          .from("video_ratings").select("puan")
+          .eq("video_id", videoId).eq("user_id", userId).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+  const o = ozet.data?.[0] ?? { ortalama: null, oy_sayisi: 0 };
+  return {
+    ortalama: o.ortalama != null ? Number(o.ortalama) : null,
+    oySayisi: Number(o.oy_sayisi) || 0,
+    benim: kendi.data?.puan ?? null,
+  };
+}
+export async function puanVer(videoId, userId, puan) {
+  return supabase
+    .from("video_ratings")
+    .upsert({ video_id: videoId, user_id: userId, puan }, { onConflict: "video_id,user_id" });
+}
+
 // Tek başlık + sıralı bölümler
 export async function getTitle(id) {
   const veri = await getir(`titles?select=*,videos(*)&id=eq.${id}`);

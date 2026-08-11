@@ -19,6 +19,8 @@ import {
   toCard,
   getPlatformMode,
   getPromoBanner,
+  getVideoPuan,
+  puanVer,
 } from "./catalog";
 import { useLang } from "./i18n";
 import { useAyarlar } from "./ayarlar";
@@ -44,7 +46,7 @@ function streamSdkYukle() {
 // sonraki sekme dönüşlerinde Keşfet ana sayfadan başlar.
 let derinBaglantiKullanildi = false;
 
-export default function Viewer({ user, istenen, anaSinyal, festivalGit }) {
+export default function Viewer({ user, istenen, anaSinyal, festivalGit, girisAc }) {
   // gorunum: {tip:"ana"} | {tip:"detay", id} | {tip:"oynat", video, baslik, baslangic}
   const [gorunum, setGorunum] = useState(() => {
     const paylasilan =
@@ -88,6 +90,7 @@ export default function Viewer({ user, istenen, anaSinyal, festivalGit }) {
         baslangic={gorunum.baslangic}
         user={user}
         oynat={oynat}
+        girisAc={girisAc}
         geri={() => setGorunum({ tip: "detay", id: gorunum.baslik.id })}
       />
     );
@@ -849,7 +852,7 @@ function Detay({ id, user, oynat, geri }) {
 }
 
 // ————— Oynatıcı: sponsor pre-roll → CF iframe + SDK ile gerçek izlenme süresi —————
-function Oynatici({ video, baslik, baslangic = 0, user, oynat, geri }) {
+function Oynatici({ video, baslik, baslangic = 0, user, oynat, geri, girisAc }) {
   const { s, dil } = useLang();
   const { ayarlar } = useAyarlar();
   const iframeRef = useRef(null);
@@ -1118,6 +1121,80 @@ function Oynatici({ video, baslik, baslangic = 0, user, oynat, geri }) {
             </div>
           </div>
         )}
+      </div>
+
+      {/* İzlenen videonun 1–10 halk oylaması (player'ın hemen altında) */}
+      <PuanKontrol video={video} user={user} girisAc={girisAc} />
+    </div>
+  );
+}
+
+// ————— Video halk oylaması (1–10) — aggregate göster + optimistik oy —————
+function PuanKontrol({ video, user, girisAc }) {
+  const { s } = useLang();
+  const [ozet, setOzet] = useState({ ortalama: null, oySayisi: 0, benim: null });
+
+  useEffect(() => {
+    getVideoPuan(video.id, user?.id ?? null).then(setOzet).catch(() => {});
+  }, [video.id, user?.id]);
+
+  function oyla(p) {
+    if (!user) return girisAc(); // misafir → giriş (listemDegistir örüntüsü)
+    // Optimistik: ortalama + oy sayısını yerelde güncelle (refetch beklemeden)
+    setOzet((o) => {
+      const yeniSayi = o.benim == null ? o.oySayisi + 1 : o.oySayisi;
+      const toplam = (o.ortalama ?? 0) * o.oySayisi - (o.benim ?? 0) + p;
+      const yeniOrt = yeniSayi > 0 ? Math.round((toplam / yeniSayi) * 10) / 10 : p;
+      return { ortalama: yeniOrt, oySayisi: yeniSayi, benim: p };
+    });
+    puanVer(video.id, user.id, p).catch(() => {
+      getVideoPuan(video.id, user.id).then(setOzet).catch(() => {}); // hata → tazele
+    });
+  }
+
+  const p10 = s.kesfet.puanlama;
+  return (
+    <div style={{ marginTop: 22 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
+        <span style={{ fontFamily: t.display, fontWeight: 700, fontSize: 16 }}>{p10.baslik}</span>
+        {ozet.ortalama != null ? (
+          <span style={{ fontSize: 15 }}>
+            <b>{ozet.ortalama.toFixed(1)}</b>
+            <span style={{ color: t.dim }}> · {p10.oy(ozet.oySayisi)}</span>
+          </span>
+        ) : (
+          <span style={{ color: t.dim, fontSize: 14 }}>{p10.yok}</span>
+        )}
+        {ozet.benim != null && (
+          <span style={{ color: t.dim, fontSize: 13, marginLeft: "auto" }}>
+            {p10.senin}: {ozet.benim}
+          </span>
+        )}
+      </div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {Array.from({ length: 10 }, (_, i) => i + 1).map((p) => {
+          const secili = ozet.benim === p;
+          return (
+            <button
+              key={p}
+              onClick={() => oyla(p)}
+              title={!user ? p10.giris : undefined}
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 8,
+                background: secili ? t.gradient : "none",
+                color: secili ? "#0A0A0B" : t.text,
+                border: `1px solid ${secili ? t.accent : t.line}`,
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              {p}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

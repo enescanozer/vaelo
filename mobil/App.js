@@ -51,6 +51,8 @@ import {
   kayitPushToken,
   getPlatformMode,
   getPromoBanner,
+  getVideoPuan,
+  puanVer,
 } from "./api";
 import {
   useAuth,
@@ -418,6 +420,7 @@ export default function App() {
           user={user}
           altyaziDil={ayarlar.altyaziAcik ? ayarlar.altyaziDil || dil : ""}
           oynat={oynat}
+          girisAc={() => setGirisAcik(true)}
           geri={() => setGorunum({ tip: "detay", id: gorunum.baslik.id })}
         />
       )}
@@ -775,6 +778,74 @@ function AnaIskelet() {
           <NabizKutu style={{ width: "35%", height: 12, marginTop: 6 }} />
         </View>
       ))}
+    </View>
+  );
+}
+
+// ————— Video 1–10 halk oylaması (mobil) — aggregate + optimistik oy —————
+function MobilPuan({ video, user, girisAc, d }) {
+  const [ozet, setOzet] = useState({ ortalama: null, oySayisi: 0, benim: null });
+  useEffect(() => {
+    getVideoPuan(video.id, user?.id ?? null).then(setOzet).catch(() => {});
+  }, [video.id, user?.id]);
+
+  function oyla(p) {
+    if (!user) return girisAc();
+    setOzet((o) => {
+      const yeniSayi = o.benim == null ? o.oySayisi + 1 : o.oySayisi;
+      const toplam = (o.ortalama ?? 0) * o.oySayisi - (o.benim ?? 0) + p;
+      const yeniOrt = yeniSayi > 0 ? Math.round((toplam / yeniSayi) * 10) / 10 : p;
+      return { ortalama: yeniOrt, oySayisi: yeniSayi, benim: p };
+    });
+    puanVer(video.id, user.id, p).catch(() => {
+      getVideoPuan(video.id, user.id).then(setOzet).catch(() => {});
+    });
+  }
+
+  const pp = d.puanlama;
+  return (
+    <View style={{ marginTop: 16 }}>
+      <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
+        <Text style={{ color: t.text, fontSize: 15, fontWeight: "700" }}>{pp.baslik}</Text>
+        {ozet.ortalama != null ? (
+          <Text style={{ color: t.text, fontSize: 14 }}>
+            <Text style={{ fontWeight: "700" }}>{ozet.ortalama.toFixed(1)}</Text>
+            <Text style={{ color: t.dim }}> · {pp.oy(ozet.oySayisi)}</Text>
+          </Text>
+        ) : (
+          <Text style={{ color: t.dim, fontSize: 13 }}>{pp.yok}</Text>
+        )}
+        {ozet.benim != null && (
+          <Text style={{ color: t.dim, fontSize: 12 }}>
+            {pp.senin}: {ozet.benim}
+          </Text>
+        )}
+      </View>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+        {Array.from({ length: 10 }, (_, i) => i + 1).map((p) => {
+          const secili = ozet.benim === p;
+          return (
+            <TouchableOpacity
+              key={p}
+              onPress={() => oyla(p)}
+              activeOpacity={0.8}
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 8,
+                alignItems: "center",
+                justifyContent: "center",
+                overflow: "hidden",
+                borderWidth: 1,
+                borderColor: secili ? t.accent : t.line,
+              }}
+            >
+              {secili && <Gradyan />}
+              <Text style={{ color: secili ? "#0A0A0B" : t.text, fontWeight: "700", fontSize: 13 }}>{p}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -1385,7 +1456,7 @@ function Detay({ d, id, user, girisAc, oynat, geri }) {
 }
 
 // ————— Oynatıcı: YouTube düzeni — video üstte sabit, altı kaydırılabilir —————
-function Oynatici({ d, video, baslik, user, altyaziDil, oynat, geri }) {
+function Oynatici({ d, video, baslik, user, altyaziDil, oynat, geri, girisAc }) {
   // Açılışta izlenme kaydı (girişliyse user_id ile → "devam et"; bölüm değişince yenisi)
   useEffect(() => {
     logWatch(video.id, user?.id ?? null);
@@ -1432,6 +1503,10 @@ function Oynatici({ d, video, baslik, user, altyaziDil, oynat, geri }) {
             .filter(Boolean)
             .join(" · ")}
         </Text>
+
+        {/* 1–10 halk oylaması — player'ın hemen altında, açıklamanın üstünde */}
+        <MobilPuan video={video} user={user} girisAc={girisAc} d={d} />
+
         {!!baslik.description && (
           <Text style={[s.dim, { lineHeight: 21, marginTop: 12 }]}>
             {baslik.description}

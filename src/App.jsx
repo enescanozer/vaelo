@@ -419,6 +419,7 @@ export default function App() {
             user={user}
             istenen={istenenBaslik}
             anaSinyal={anaSinyal}
+            girisAc={() => setGirisAcik(true)}
             festivalGit={(hedef) => {
               // Festival CTA'ları: sanat → Tablo; film → rol-farkında (creator=Yükle,
               // girişli izleyici=Üretici ol, anon=giriş).

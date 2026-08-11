@@ -569,3 +569,28 @@ export async function getPromoBanners() {
     .from("promo_banners").select("*").order("created_at", { ascending: false });
   return data ?? [];
 }
+
+// ————— Video halk oylaması (1–10) —————
+// Aggregate (ortalama + oy_sayisi) anon RPC ile; kullanıcının kendi puanı girişliyse.
+export async function getVideoPuan(videoId, userId = null) {
+  const [ozet, kendi] = await Promise.all([
+    supabase.rpc("video_puan_ozet", { p_video: videoId }),
+    userId
+      ? supabase
+          .from("video_ratings").select("puan")
+          .eq("video_id", videoId).eq("user_id", userId).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+  const o = ozet.data?.[0] ?? { ortalama: null, oy_sayisi: 0 };
+  return {
+    ortalama: o.ortalama != null ? Number(o.ortalama) : null,
+    oySayisi: Number(o.oy_sayisi) || 0,
+    benim: kendi.data?.puan ?? null,
+  };
+}
+// Oy ver/değiştir (upsert — contest_votes örüntüsü). Giriş çağıran tarafta zorunlu kılınır.
+export async function puanVer(videoId, userId, puan) {
+  return supabase
+    .from("video_ratings")
+    .upsert({ video_id: videoId, user_id: userId, puan }, { onConflict: "video_id,user_id" });
+}
