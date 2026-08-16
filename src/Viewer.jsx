@@ -21,6 +21,8 @@ import {
   getPromoBanner,
   getVideoPuan,
   puanVer,
+  getUreticiProfil,
+  sosyalUrl,
 } from "./catalog";
 import { useLang } from "./i18n";
 import { useAyarlar } from "./ayarlar";
@@ -706,6 +708,7 @@ function Detay({ id, user, oynat, geri }) {
   const [hata, setHata] = useState(null);
   const [ekli, setEkli] = useState(null); // null: bilinmiyor, true/false: Listem durumu
   const [kopyalandi, setKopyalandi] = useState(false);
+  const [uretici, setUretici] = useState(null); // üretici herkese açık kartı (ad + sosyal)
 
   async function paylas() {
     const url = `${window.location.origin}${window.location.pathname}?b=${id}`;
@@ -721,7 +724,13 @@ function Detay({ id, user, oynat, geri }) {
   useEffect(() => {
     let aktif = true;
     getTitle(id)
-      .then((b) => aktif && setBaslik(b))
+      .then((b) => {
+        if (!aktif) return;
+        setBaslik(b);
+        // Üretici kartını (ad + sosyal) getir — yalnız yayınlanmış başlığın üreticisi
+        setUretici(null);
+        if (b?.creator_id) getUreticiProfil(b.creator_id).then((u) => aktif && setUretici(u));
+      })
       .catch((e) => aktif && setHata(e.message));
     if (user) {
       inMyList(user.id, id).then((e) => aktif && setEkli(e));
@@ -794,6 +803,53 @@ function Detay({ id, user, oynat, geri }) {
         {baslik.description && (
           <div style={{ color: t.dim, fontSize: 15, lineHeight: 1.6, marginBottom: 28, maxWidth: 640 }}>
             {baslik.description}
+          </div>
+        )}
+
+        {/* Üretici: ad + (varsa) sosyal linkler — profil bazlı, her videosunda görünür */}
+        {uretici && (uretici.display_name || uretici.bio ||
+          [uretici.instagram, uretici.tiktok, uretici.youtube, uretici.twitter, uretici.website].some(Boolean)) && (
+          <div style={{ marginBottom: 28 }}>
+            <div style={{ color: t.dim, fontSize: 12, marginBottom: 8 }}>{s.kesfet.uretici}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 15, fontWeight: 600 }}>
+                {uretici.display_name || s.kesfet.uretici}
+              </span>
+              {[
+                ["instagram", "Instagram", uretici.instagram],
+                ["tiktok", "TikTok", uretici.tiktok],
+                ["youtube", "YouTube", uretici.youtube],
+                ["twitter", "X", uretici.twitter],
+                ["website", s.kesfet.website, uretici.website],
+              ].map(([p, etiket, ham]) => {
+                const url = sosyalUrl(p, ham);
+                if (!url) return null;
+                return (
+                  <a
+                    key={p}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      fontSize: 12,
+                      color: t.text,
+                      textDecoration: "none",
+                      padding: "5px 12px",
+                      border: `1px solid ${t.line}`,
+                      borderRadius: 999,
+                      background: t.surface,
+                    }}
+                  >
+                    {etiket}
+                  </a>
+                );
+              })}
+            </div>
+            {uretici.bio && (
+              <div style={{ color: t.dim, fontSize: 13, marginTop: 8, maxWidth: 640, lineHeight: 1.5 }}>
+                {uretici.bio}
+              </div>
+            )}
           </div>
         )}
 

@@ -111,6 +111,37 @@ export async function getTitle(id) {
   return baslik;
 }
 
+// Üretici herkese açık kartı (video detayı): ad + bio + sosyal. uretici_kartlari görünümü
+// yalnız whitelisted kolonları döndürür (RLS güvenli).
+export async function getUreticiProfil(creatorId) {
+  if (!creatorId) return null;
+  try {
+    const veri = await getir(`uretici_kartlari?select=*&id=eq.${creatorId}&limit=1`);
+    return veri?.[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// Sosyal medya girişini güvenli URL'e çevirir: tam URL ise http/https doğrular; kullanıcı
+// adı (@ opsiyonel) ise platforma göre URL kurar. Aksi halde null.
+export function sosyalUrl(platform, ham) {
+  if (!ham) return null;
+  const g = String(ham).trim();
+  if (!g) return null;
+  if (/^https?:\/\//i.test(g)) return g;
+  const kad = g.replace(/^@+/, "").replace(/\s+/g, "");
+  if (!kad) return null;
+  switch (platform) {
+    case "instagram": return `https://instagram.com/${kad}`;
+    case "tiktok": return `https://tiktok.com/@${kad}`;
+    case "youtube": return `https://youtube.com/@${kad}`;
+    case "twitter": return `https://x.com/${kad}`;
+    case "website": return `https://${kad}`;
+    default: return null;
+  }
+}
+
 // Basit arama (ad/açıklama/tür)
 export async function searchTitles(sorgu) {
   const guvenli = encodeURIComponent(`%${sorgu.replace(/[%,()]/g, " ").trim()}%`);

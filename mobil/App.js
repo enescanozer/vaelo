@@ -53,6 +53,8 @@ import {
   getPromoBanner,
   getVideoPuan,
   puanVer,
+  getUreticiProfil,
+  sosyalUrl,
 } from "./api";
 import {
   useAuth,
@@ -1415,9 +1417,16 @@ function Detay({ d, id, user, girisAc, oynat, geri }) {
   const [baslik, setBaslik] = useState(null);
   const [hata, setHata] = useState(null);
   const [ekli, setEkli] = useState(null); // null: bilinmiyor
+  const [uretici, setUretici] = useState(null); // üretici kartı (ad + sosyal)
 
   useEffect(() => {
-    getTitle(id).then(setBaslik).catch((e) => setHata(e.message));
+    setUretici(null);
+    getTitle(id)
+      .then((b) => {
+        setBaslik(b);
+        if (b?.creator_id) getUreticiProfil(b.creator_id).then(setUretici);
+      })
+      .catch((e) => setHata(e.message));
     if (user) inMyList(user.id, id).then(setEkli);
     else setEkli(null);
   }, [id, user?.id]);
@@ -1442,6 +1451,37 @@ function Detay({ d, id, user, girisAc, oynat, geri }) {
       <Text style={s.detayAd}>{baslik.name}</Text>
       {!!baslik.description && (
         <Text style={[s.dim, { lineHeight: 21, marginBottom: 20 }]}>{baslik.description}</Text>
+      )}
+
+      {/* Üretici: ad + (varsa) sosyal linkler — profil bazlı */}
+      {uretici && (uretici.display_name || uretici.bio ||
+        [uretici.instagram, uretici.tiktok, uretici.youtube, uretici.twitter, uretici.website].some(Boolean)) && (
+        <View style={{ marginBottom: 20 }}>
+          <Text style={[s.dim, { fontSize: 12, marginBottom: 6 }]}>{d.uretici}</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+            <Text style={{ color: t.text, fontSize: 15, fontWeight: "700" }}>
+              {uretici.display_name || d.uretici}
+            </Text>
+            {[
+              ["instagram", "Instagram", uretici.instagram],
+              ["tiktok", "TikTok", uretici.tiktok],
+              ["youtube", "YouTube", uretici.youtube],
+              ["twitter", "X", uretici.twitter],
+              ["website", d.website, uretici.website],
+            ].map(([p, etiket, ham]) => {
+              const url = sosyalUrl(p, ham);
+              if (!url) return null;
+              return (
+                <TouchableOpacity key={p} onPress={() => Linking.openURL(url)} style={s.sosyalPill}>
+                  <Text style={s.sosyalPillYazi}>{etiket}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {!!uretici.bio && (
+            <Text style={[s.dim, { fontSize: 13, marginTop: 8, lineHeight: 19 }]}>{uretici.bio}</Text>
+          )}
+        </View>
       )}
 
       <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
@@ -2114,6 +2154,15 @@ const s = StyleSheet.create({
     overflow: "hidden",
   },
   haftalikRozetYazi: { color: "#0A0A0B", fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
+  sosyalPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: t.line,
+    backgroundColor: t.surface,
+  },
+  sosyalPillYazi: { color: t.text, fontSize: 12 },
   sonucSatiri: {
     flexDirection: "row",
     gap: 12,

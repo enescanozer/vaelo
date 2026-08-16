@@ -7,6 +7,14 @@ import { t } from "./theme";
 export default function Profile({ user, profile, kapat, yenile }) {
   const { s } = useLang();
   const [ad, setAd] = useState(profile?.display_name ?? "");
+  const [bio, setBio] = useState(profile?.bio ?? "");
+  const [instagram, setInstagram] = useState(profile?.instagram ?? "");
+  const [tiktok, setTiktok] = useState(profile?.tiktok ?? "");
+  const [youtube, setYoutube] = useState(profile?.youtube ?? "");
+  const [twitter, setTwitter] = useState(profile?.twitter ?? "");
+  const [website, setWebsite] = useState(profile?.website ?? "");
+  // Yalnız üretici/admin sosyal alanları görür (izleyicinin profilinde anlamı yok)
+  const uretici = profile?.role === "creator" || profile?.role === "admin";
 
   // ESC ile kapat
   useEffect(() => {
@@ -24,9 +32,23 @@ export default function Profile({ user, profile, kapat, yenile }) {
     e.preventDefault();
     setHata(null);
     setBekliyor(true);
+    // Sosyal alanlar boşsa null yaz (ikon gösterilmemesi için). Değerler ham saklanır;
+    // güvenli URL'e çevrim görüntüleme tarafında (sosyalUrl) yapılır.
+    const bosNull = (v) => (v.trim() ? v.trim() : null);
+    const guncelleme = { display_name: ad };
+    if (uretici) {
+      Object.assign(guncelleme, {
+        bio: bosNull(bio),
+        instagram: bosNull(instagram),
+        tiktok: bosNull(tiktok),
+        youtube: bosNull(youtube),
+        twitter: bosNull(twitter),
+        website: bosNull(website),
+      });
+    }
     const { error } = await supabase
       .from("profiles")
-      .update({ display_name: ad })
+      .update(guncelleme)
       .eq("id", user.id);
     setBekliyor(false);
     if (error) {
@@ -92,6 +114,62 @@ export default function Profile({ user, profile, kapat, yenile }) {
             marginBottom: 16,
           }}
         />
+
+        {/* Üretici: bio + sosyal medya (profil bazlı, her videosunda görünür) */}
+        {uretici && (
+          <>
+            <label style={{ color: t.dim, fontSize: 13, display: "block", marginBottom: 6 }}>
+              {s.profil.bio}
+            </label>
+            <textarea
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              rows={2}
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                background: t.surface2,
+                border: `1px solid ${t.line}`,
+                borderRadius: 8,
+                color: t.text,
+                fontSize: 14,
+                outline: "none",
+                marginBottom: 16,
+                resize: "vertical",
+              }}
+            />
+            <label style={{ color: t.dim, fontSize: 13, display: "block", marginBottom: 6 }}>
+              {s.profil.sosyal}
+            </label>
+            <div style={{ color: t.dim, fontSize: 12, marginBottom: 8 }}>{s.profil.sosyalIpucu}</div>
+            {[
+              ["Instagram", instagram, setInstagram],
+              ["TikTok", tiktok, setTiktok],
+              ["YouTube", youtube, setYoutube],
+              ["X (Twitter)", twitter, setTwitter],
+              [s.profil.website, website, setWebsite],
+            ].map(([etiket, deger, ayarla]) => (
+              <input
+                key={etiket}
+                value={deger}
+                onChange={(e) => ayarla(e.target.value)}
+                placeholder={etiket}
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  background: t.surface2,
+                  border: `1px solid ${t.line}`,
+                  borderRadius: 8,
+                  color: t.text,
+                  fontSize: 14,
+                  outline: "none",
+                  marginBottom: 8,
+                }}
+              />
+            ))}
+            <div style={{ height: 8 }} />
+          </>
+        )}
 
         {/* E-posta + doğrulama durumu */}
         <div

@@ -628,3 +628,39 @@ export async function puanVer(videoId, userId, puan) {
     .from("video_ratings")
     .upsert({ video_id: videoId, user_id: userId, puan }, { onConflict: "video_id,user_id" });
 }
+
+// ————— Üretici herkese açık kartı (video detayı) —————
+// uretici_kartlari görünümü yalnız whitelisted kolonları döndürür (RLS güvenli).
+export async function getUreticiProfil(creatorId) {
+  if (!creatorId) return null;
+  const { data } = await supabase
+    .from("uretici_kartlari").select("*").eq("id", creatorId).maybeSingle();
+  return data ?? null;
+}
+
+// Sosyal medya girişini güvenli URL'e çevirir: tam URL ise http/https doğrular; kullanıcı adı
+// (@ opsiyonel) ise platforma göre URL kurar. javascript:/data: gibi şemalar reddedilir → null.
+export function sosyalUrl(platform, ham) {
+  if (!ham) return null;
+  const g = String(ham).trim();
+  if (!g) return null;
+  if (/^https?:\/\//i.test(g)) {
+    try {
+      const u = new URL(g);
+      return u.protocol === "http:" || u.protocol === "https:" ? u.href : null;
+    } catch {
+      return null;
+    }
+  }
+  const kad = g.replace(/^@+/, "").replace(/\s+/g, "");
+  if (!kad) return null;
+  switch (platform) {
+    case "instagram": return `https://instagram.com/${kad}`;
+    case "tiktok": return `https://tiktok.com/@${kad}`;
+    case "youtube": return `https://youtube.com/@${kad}`;
+    case "twitter": return `https://x.com/${kad}`;
+    case "website":
+      try { return new URL(`https://${kad}`).href; } catch { return null; }
+    default: return null;
+  }
+}
