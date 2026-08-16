@@ -466,6 +466,8 @@ function PromoBannerlar() {
   const [metin, setMetin] = useState("");
   const [gorsel, setGorsel] = useState("");
   const [link, setLink] = useState("");
+  const [baslar, setBaslar] = useState(""); // datetime-local (boş → hemen)
+  const [biter, setBiter] = useState("");   // datetime-local (boş → süresiz)
   const [hata, setHata] = useState(null);
 
   async function yenile() {
@@ -485,12 +487,17 @@ function PromoBannerlar() {
       body: metin || null,
       image_url: gorsel || null,
       link_url: link || null,
+      // datetime-local yerel saat verir → ISO'ya çevir (boşsa null: hemen/süresiz)
+      starts_at: baslar ? new Date(baslar).toISOString() : null,
+      ends_at: biter ? new Date(biter).toISOString() : null,
     });
     if (error) return setHata(error.message);
     setBaslik("");
     setMetin("");
     setGorsel("");
     setLink("");
+    setBaslar("");
+    setBiter("");
     yenile();
   }
   async function acKapat(b) {
@@ -512,6 +519,14 @@ function PromoBannerlar() {
     outline: "none",
   };
 
+  // Banner şu an tarih penceresi içinde mi (aktiflik ayrı gösterilir)
+  function bannerCanli(b) {
+    const simdi = Date.now();
+    if (b.starts_at && new Date(b.starts_at).getTime() > simdi) return false;
+    if (b.ends_at && new Date(b.ends_at).getTime() <= simdi) return false;
+    return true;
+  }
+
   return (
     <div style={{ marginTop: 48 }}>
       <div style={{ fontFamily: t.display, fontWeight: 700, fontSize: 18, marginBottom: 6 }}>
@@ -525,6 +540,14 @@ function PromoBannerlar() {
         <input style={{ ...alanStil, flex: 1, minWidth: 160 }} placeholder={s.panel.promo.metin} value={metin} onChange={(e) => setMetin(e.target.value)} />
         <input style={{ ...alanStil, width: 180 }} placeholder={s.panel.promo.gorselAlan} value={gorsel} onChange={(e) => setGorsel(e.target.value)} />
         <input style={{ ...alanStil, width: 180 }} placeholder={s.panel.promo.linkAlan} type="url" value={link} onChange={(e) => setLink(e.target.value)} />
+        <label style={{ color: t.dim, fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}>
+          {s.panel.promo.baslar}
+          <input style={{ ...alanStil, width: 190 }} type="datetime-local" value={baslar} onChange={(e) => setBaslar(e.target.value)} />
+        </label>
+        <label style={{ color: t.dim, fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}>
+          {s.panel.promo.biter}
+          <input style={{ ...alanStil, width: 190 }} type="datetime-local" value={biter} onChange={(e) => setBiter(e.target.value)} />
+        </label>
         <button type="submit" style={{ background: t.gradient, color: "#0A0A0B", border: "none", borderRadius: 8, padding: "9px 16px", fontSize: 13, fontWeight: 700 }}>
           {s.panel.ekle}
         </button>
@@ -537,6 +560,16 @@ function PromoBannerlar() {
             <span style={{ fontWeight: 600 }}>{b.title}</span>
             {b.body && <span style={{ color: t.dim, flex: 1, minWidth: 0 }}>{b.body}</span>}
             {!b.body && <span style={{ flex: 1 }} />}
+            {(b.starts_at || b.ends_at) && (
+              <span style={{ color: t.dim, fontSize: 11 }}>
+                {b.starts_at ? new Date(b.starts_at).toLocaleString(s.locale) : "—"}
+                {" → "}
+                {b.ends_at ? new Date(b.ends_at).toLocaleString(s.locale) : "∞"}
+              </span>
+            )}
+            {b.active && bannerCanli(b) && (
+              <span style={{ color: t.accent, fontSize: 11, fontWeight: 700 }}>{s.panel.promo.canli}</span>
+            )}
             <span style={{ color: b.active ? t.accent : t.dim, fontSize: 12 }}>
               {b.active ? s.panel.aktif : s.panel.pasif}
             </span>

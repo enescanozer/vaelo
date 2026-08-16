@@ -17,6 +17,8 @@ export default function Upload({ user }) {
   const [tur, setTur] = useState("");
   const [yil, setYil] = useState(new Date().getFullYear());
   const [aciklama, setAciklama] = useState("");
+  const [haftalik, setHaftalik] = useState(false); // yeni dizi: "her hafta yeni bölüm"
+  const [icerikTipi, setIcerikTipi] = useState("ana"); // "ana" (film/bölüm) | "yapim" (BTS)
 
   // Bölüm alanları
   const [bolumAd, setBolumAd] = useState("");
@@ -61,6 +63,7 @@ export default function Upload({ user }) {
             genre: tur || null,
             year: yil || null,
             description: aciklama || null,
+            haftalik: tip === "dizi" ? haftalik : false,
             status: "draft",
           })
           .select("id")
@@ -76,8 +79,9 @@ export default function Upload({ user }) {
           body: {
             title_id: titleId,
             name: bolumAd || null,
-            season: dizi ? sezon : null,
-            episode: dizi ? bolum : null,
+            season: dizi && icerikTipi === "ana" ? sezon : null,
+            episode: dizi && icerikTipi === "ana" ? bolum : null,
+            icerik_tipi: icerikTipi,
           },
         }
       );
@@ -208,10 +212,30 @@ export default function Upload({ user }) {
                 onChange={(e) => setAciklama(e.target.value)}
               />
             </div>
+            {tip === "dizi" && (
+              <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 14 }}>
+                <input type="checkbox" checked={haftalik} onChange={(e) => setHaftalik(e.target.checked)} />
+                <span>
+                  {s.yukle.haftalik}
+                  <span style={{ display: "block", color: t.dim, fontSize: 12 }}>{s.yukle.haftalikAlt}</span>
+                </span>
+              </label>
+            )}
           </>
         )}
 
-        {dizi && (
+        <div>
+          <label style={etiketStil}>{s.yukle.icerikTipi}</label>
+          <select style={alanStil} value={icerikTipi} onChange={(e) => setIcerikTipi(e.target.value)}>
+            <option value="ana">{s.yukle.icerikAna}</option>
+            <option value="yapim">{s.yukle.icerikYapim}</option>
+          </select>
+          {icerikTipi === "yapim" && (
+            <div style={{ color: t.dim, fontSize: 12, marginTop: 6 }}>{s.yukle.icerikYapimAlt}</div>
+          )}
+        </div>
+
+        {dizi && icerikTipi === "ana" && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
             <div>
               <label style={etiketStil}>{s.yukle.sezon}</label>

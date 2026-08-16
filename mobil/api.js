@@ -38,7 +38,11 @@ export async function getCatalog() {
   const veri = await getir(
     "titles?select=*,videos(*)&status=eq.published&order=published_at.desc"
   );
-  return veri.map(onayliBolumler).filter((b) => b.videos.length > 0);
+  // Yapım (BTS) videoları ana feed'de bölüm sayılmaz (M3)
+  return veri
+    .map(onayliBolumler)
+    .map((b) => ({ ...b, videos: b.videos.filter((v) => (v.icerik_tipi ?? "ana") !== "yapim") }))
+    .filter((b) => b.videos.length > 0);
 }
 
 // Platform modu (festival ↔ netflix) — anon okunur, kısa önbellek (ekstra round-trip yok)
@@ -55,11 +59,15 @@ export async function getPlatformMode() {
   _modZaman = Date.now();
   return _modOnbellek;
 }
-// Festival landing'i için tek aktif promo banner
+// Festival landing'i için o an geçerli tek banner (M4 tarih penceresi: aktif VE
+// starts_at boş/geçmiş VE ends_at boş/gelecek; en yeni başlayan pencere öncelikli).
 export async function getPromoBanner() {
   try {
+    const z = encodeURIComponent(new Date().toISOString());
     const veri = await getir(
-      "promo_banners?select=*&active=eq.true&order=created_at.desc&limit=1"
+      "promo_banners?select=*&active=eq.true" +
+        `&and=(or(starts_at.is.null,starts_at.lte.${z}),or(ends_at.is.null,ends_at.gt.${z}))` +
+        "&order=starts_at.desc.nullslast,created_at.desc&limit=1"
     );
     return veri?.[0] ?? null;
   } catch {
@@ -94,6 +102,9 @@ export async function puanVer(videoId, userId, puan) {
 export async function getTitle(id) {
   const veri = await getir(`titles?select=*,videos(*)&id=eq.${id}`);
   const baslik = onayliBolumler(veri[0] ?? {});
+  // Ana bölümler ile yapım (BTS) videolarını ayır (M3)
+  baslik.yapimlar = baslik.videos.filter((v) => (v.icerik_tipi ?? "ana") === "yapim");
+  baslik.videos = baslik.videos.filter((v) => (v.icerik_tipi ?? "ana") !== "yapim");
   baslik.videos.sort(
     (a, b) => (a.season ?? 0) - (b.season ?? 0) || (a.episode ?? 0) - (b.episode ?? 0)
   );

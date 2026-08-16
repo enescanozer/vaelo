@@ -870,7 +870,7 @@ function MobilFestivalKart({ baslik, alt, cta, vurgulu, bas }) {
     </View>
   );
 }
-function MobilFestival({ d, banner, git, tabloAc, ayarlarAc, user, girisAc }) {
+function MobilFestival({ d, banner, git, tabloAc, ayarlarAc, user, girisAc, buHafta = [], ac }) {
   const f = d.festival;
   const link = banner?.link_url && /^https?:\/\//i.test(banner.link_url) ? banner.link_url : null;
   return (
@@ -918,6 +918,17 @@ function MobilFestival({ d, banner, git, tabloAc, ayarlarAc, user, girisAc }) {
         <MobilFestivalKart baslik={f.filmBaslik} alt={f.filmAlt} cta={f.filmCta} vurgulu bas={() => git("film")} />
         <MobilFestivalKart baslik={f.artBaslik} alt={f.artAlt} cta={f.artCta} bas={() => git("art")} />
       </View>
+
+      {/* "Bu Hafta Yeni" — festival penceresinde de taze bölümler (kullanıcı isteği) */}
+      {buHafta.length > 0 && ac && (
+        <View style={{ marginTop: 28 }}>
+          <YatayRaf
+            d={d}
+            ad={d.buHaftaYeni}
+            ogeler={buHafta.map((b) => ({ baslik: b, bas: () => ac(b.id) }))}
+          />
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -988,6 +999,15 @@ function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac, aramaOdak, festi
     return () => clearTimeout(z);
   }, [arama]);
 
+  // "Bu Hafta Yeni": son 7 günde yeni onaylı bölüm alan başlıklar (festival + netflix ortak)
+  const birHaftaOnce = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const enYeniBolum = (b) =>
+    Math.max(0, ...(b.videos ?? []).map((v) => (v.published_at ? new Date(v.published_at).getTime() : 0)));
+  const buHafta = (katalog ?? [])
+    .filter((b) => enYeniBolum(b) >= birHaftaOnce)
+    .sort((a, b) => enYeniBolum(b) - enYeniBolum(a))
+    .slice(0, 12);
+
   // Mod yüklenene dek iskelet; festival modunda toplama landing'i (hero+feed yerine)
   if (mod === null) return <AnaIskelet />;
   if (mod === "festival") {
@@ -1000,6 +1020,8 @@ function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac, aramaOdak, festi
         ayarlarAc={ayarlarAc}
         user={user}
         girisAc={girisAc}
+        buHafta={buHafta}
+        ac={ac}
       />
     );
   }
@@ -1127,6 +1149,13 @@ function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac, aramaOdak, festi
           d={d}
           ad={d.listem}
           ogeler={listem.map((b) => ({ baslik: b, bas: () => ac(b.id) }))}
+        />
+      )}
+      {buHafta.length > 0 && (
+        <YatayRaf
+          d={d}
+          ad={d.buHaftaYeni}
+          ogeler={buHafta.map((b) => ({ baslik: b, bas: () => ac(b.id) }))}
         />
       )}
 
@@ -1329,6 +1358,12 @@ function AkisKarti({ d, baslik, ac, gomulu }) {
     >
       <View style={s.akisKapak}>
         <Kapak baslik={baslik} harf={44} adGoster />
+        {baslik.haftalik && (
+          <View style={s.haftalikRozet}>
+            <Gradyan />
+            <Text style={s.haftalikRozetYazi}>{d.haftalikRozet}</Text>
+          </View>
+        )}
       </View>
       <Text style={s.akisAd}>{baslik.name}</Text>
       <Text style={s.kartAlt}>
@@ -1451,6 +1486,30 @@ function Detay({ d, id, user, girisAc, oynat, geri }) {
             <Text style={s.dim}>▶</Text>
           </TouchableOpacity>
         ))}
+
+      {/* Yapım Süreci (BTS) — ana bölümlerden ayrı, çapraz bağlı (M3) */}
+      {baslik.yapimlar?.length > 0 && (
+        <View style={{ marginTop: 24 }}>
+          <Text style={s.rafBaslik}>{d.yapimSureci}</Text>
+          {baslik.yapimlar.map((video) => (
+            <TouchableOpacity
+              key={video.id}
+              style={s.bolumSatiri}
+              onPress={() => {
+                dokunHafif();
+                oynat(video, baslik);
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={[s.dim, { width: 52, textAlign: "center" }]}>🎬</Text>
+              <Text style={s.bolumAd} numberOfLines={1}>
+                {video.name || d.yapimSureci}
+              </Text>
+              <Text style={s.dim}>▶</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -2045,6 +2104,16 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   akisAd: { color: t.text, fontSize: 17, fontWeight: "700", marginTop: 10 },
+  haftalikRozet: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+  haftalikRozetYazi: { color: "#0A0A0B", fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
   sonucSatiri: {
     flexDirection: "row",
     gap: 12,

@@ -32,8 +32,10 @@ Deno.serve(async (req) => {
     } = await istemci.auth.getUser();
     if (!user) return yanit({ hata: "Giriş gerekli" }, 401);
 
-    const { title_id, name, season, episode } = await req.json();
+    const { title_id, name, season, episode, icerik_tipi } = await req.json();
     if (!title_id) return yanit({ hata: "title_id zorunlu" }, 400);
+    // Yalnız izinli değerler; bilinmeyen → 'ana' (güvenli varsayılan)
+    const tip = icerik_tipi === "yapim" ? "yapim" : "ana";
 
     // 2) Başlık gerçekten bu kullanıcıya mı ait? (service role ile kontrol)
     const servis = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -73,8 +75,9 @@ Deno.serve(async (req) => {
       title_id,
       creator_id: user.id,
       name: name ?? null,
-      season: season ?? null,
-      episode: episode ?? null,
+      season: tip === "yapim" ? null : (season ?? null),
+      episode: tip === "yapim" ? null : (episode ?? null),
+      icerik_tipi: tip,
       cf_uid: cf.result.uid,
       status: "uploading",
     });

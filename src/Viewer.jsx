@@ -143,7 +143,7 @@ function FestivalKart({ baslik, alt, cta, vurgulu, onClick }) {
     </div>
   );
 }
-function FestivalLanding({ s, banner, git }) {
+function FestivalLanding({ s, banner, git, buHaftaRaf, ac }) {
   const f = s.kesfet.festival;
   const bannerLink = /^https?:\/\//i.test(banner?.link_url || "") ? banner.link_url : undefined;
   return (
@@ -183,6 +183,13 @@ function FestivalLanding({ s, banner, git }) {
         <FestivalKart baslik={f.filmBaslik} alt={f.filmAlt} cta={f.filmCta} vurgulu onClick={() => git("film")} />
         <FestivalKart baslik={f.artBaslik} alt={f.artAlt} cta={f.artCta} onClick={() => git("art")} />
       </div>
+
+      {/* "Bu Hafta Yeni" — festival penceresinde de taze bölümler görünsün (kullanıcı isteği) */}
+      {buHaftaRaf?.kartlar?.length > 0 && ac && (
+        <div style={{ marginTop: 48 }}>
+          <Raf raf={buHaftaRaf} ac={ac} />
+        </div>
+      )}
     </div>
   );
 }
@@ -227,7 +234,7 @@ function AnaSayfa({ user, ac, oynat, festivalGit }) {
 
   // Raf adları dile göre kurulur
   const raflar = useMemo(
-    () => buildRows(katalog, { yeni: s.kesfet.yeniEklenenler, diger: s.kesfet.diger }),
+    () => buildRows(katalog, { yeni: s.kesfet.yeniEklenenler, diger: s.kesfet.diger, buHafta: s.kesfet.buHaftaYeni }),
     [katalog, s]
   );
 
@@ -278,7 +285,8 @@ function AnaSayfa({ user, ac, oynat, festivalGit }) {
   // FESTIVAL modu: hero+feed+arama+filtre yerine toplama landing'i (yalnız Home).
   // Nav/sekmeler değişmez; Discover/Upload/Studio/Profile aynı kalır.
   if (mod === "festival") {
-    return <FestivalLanding s={s} banner={banner} git={festivalGit} />;
+    const buHaftaRaf = raflar.find((r) => r.ad === s.kesfet.buHaftaYeni) ?? null;
+    return <FestivalLanding s={s} banner={banner} git={festivalGit} buHaftaRaf={buHaftaRaf} ac={ac} />;
   }
 
   if (hata) {
@@ -662,6 +670,24 @@ function Kart({ kart, ac }) {
             }}
           />
         )}
+        {kart.haftalik && (
+          <span
+            style={{
+              position: "absolute",
+              top: 8,
+              left: 8,
+              padding: "3px 8px",
+              borderRadius: 999,
+              background: t.gradient,
+              color: "#0A0A0B",
+              fontSize: 10,
+              fontWeight: 800,
+              letterSpacing: 0.3,
+            }}
+          >
+            {s.kesfet.haftalikRozet}
+          </span>
+        )}
       </div>
       <div style={{ marginTop: 8, fontSize: 14, fontWeight: 600 }}>{kart.ad}</div>
       <div style={{ color: t.dim, fontSize: 12, marginTop: 2 }}>
@@ -844,6 +870,39 @@ function Detay({ id, user, oynat, geri }) {
               <span style={{ color: t.dim, fontSize: 13 }}>▶</span>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Yapım Süreci (BTS) — ana bölümlerden ayrı, çapraz bağlı (M3) */}
+      {baslik.yapimlar?.length > 0 && (
+        <div style={{ marginTop: 28 }}>
+          <div style={{ fontFamily: t.display, fontWeight: 700, fontSize: 18, marginBottom: 12 }}>
+            {s.kesfet.yapimSureci}
+          </div>
+          <div style={{ display: "grid", gap: 10 }}>
+            {baslik.yapimlar.map((video) => (
+              <div
+                key={video.id}
+                onClick={() => oynat(video, baslik)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 16,
+                  padding: "14px 18px",
+                  background: t.surface,
+                  border: `1px solid ${t.line}`,
+                  borderRadius: 8,
+                  cursor: "pointer",
+                }}
+              >
+                <span style={{ fontSize: 15, width: 56, flexShrink: 0, textAlign: "center" }}>🎬</span>
+                <span style={{ fontSize: 15, fontWeight: 600, flex: 1 }}>
+                  {video.name || s.kesfet.yapimSureci}
+                </span>
+                <span style={{ color: t.dim, fontSize: 13 }}>▶</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
       </div>

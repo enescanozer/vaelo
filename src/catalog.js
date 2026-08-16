@@ -56,7 +56,11 @@ export async function getCatalog() {
     .eq("status", "published")
     .order("published_at", { ascending: false });
   if (error) throw error;
-  katalogOnbellek = (data ?? []).map(onayliBolumler).filter((b) => b.videos.length > 0);
+  // Ana feed'de yapım (BTS) videoları bölüm olarak sayılmaz (M3) — yalnız detayda çapraz bağlanır
+  katalogOnbellek = (data ?? [])
+    .map(onayliBolumler)
+    .map((b) => ({ ...b, videos: b.videos.filter((v) => (v.icerik_tipi ?? "ana") !== "yapim") }))
+    .filter((b) => b.videos.length > 0);
   katalogZamani = Date.now();
   return katalogOnbellek;
 }
@@ -78,6 +82,9 @@ export async function getTitle(id) {
     .single();
   if (error) throw error;
   const baslik = onayliBolumler(data);
+  // Ana bölümler ile yapım (BTS) videolarını ayır — Viewer ana listeyi + "Yapım Süreci"ni ayrı gösterir
+  baslik.yapimlar = baslik.videos.filter((v) => (v.icerik_tipi ?? "ana") === "yapim");
+  baslik.videos = baslik.videos.filter((v) => (v.icerik_tipi ?? "ana") !== "yapim");
   baslik.videos.sort(
     (a, b) => (a.season ?? 0) - (b.season ?? 0) || (a.episode ?? 0) - (b.episode ?? 0)
   );
@@ -406,14 +413,33 @@ export function toCard(baslik) {
     tur: baslik.genre,
     tip: baslik.kind,
     yil: baslik.year,
+    haftalik: baslik.haftalik ?? false,
     kapak: ilkBolum?.cf_uid ? thumbUrl(ilkBolum.cf_uid) : null,
   };
 }
+
+// Başlığın en yeni onaylı bölümünün yayın zamanı (ms). "Bu Hafta Yeni" için.
+const enYeniBolumZamani = (baslik) =>
+  Math.max(
+    0,
+    ...(baslik.videos ?? []).map((v) => (v.published_at ? new Date(v.published_at).getTime() : 0)),
+  );
 
 // Katalogdan rafları kurar: "yeni eklenenler" + tür bazlı raflar.
 // Raf başlıkları dile bağlı olduğundan çağıran taraf adları verir.
 export function buildRows(katalog, adlar = { yeni: "New releases", diger: "Other" }) {
   const raflar = [];
+  // "Bu Hafta Yeni": son 7 günde yeni onaylı bölüm alan başlıklar (haftalık dizi ritmini öne
+  // çıkarır — eski bir dizi bu hafta bölüm bıraktıysa başa gelir). En yeni bölüm üstte.
+  if (adlar.buHafta) {
+    const birHaftaOnce = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const buHafta = katalog
+      .filter((b) => enYeniBolumZamani(b) >= birHaftaOnce)
+      .sort((a, b) => enYeniBolumZamani(b) - enYeniBolumZamani(a));
+    if (buHafta.length) {
+      raflar.push({ ad: adlar.buHafta, kartlar: buHafta.slice(0, 12).map(toCard) });
+    }
+  }
   if (katalog.length) {
     raflar.push({ ad: adlar.yeni, kartlar: katalog.slice(0, 12).map(toCard) });
   }
@@ -557,11 +583,19 @@ export async function setPlatformMode(mode) {
   modOnbellek = null; // sonraki okumada taze
   return r;
 }
-// Landing için tek aktif banner (en yeni). Admin CRUD için getPromoBanners.
+// Landing için o an geçerli tek banner. Tarih penceresi (M4): aktif VE
+// (starts_at boş/geçmiş) VE (ends_at boş/gelecek). Önceliği en yeni başlayan pencere alır
+// → gelecekteki tarihli banner (ör. 5 Kasım) o gün gelince eskisini otomatik geçer.
+// Admin CRUD için getPromoBanners (pencereden bağımsız, hepsini listeler).
 export async function getPromoBanner() {
+  const simdi = new Date().toISOString();
   const { data } = await supabase
     .from("promo_banners").select("*").eq("active", true)
-    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+    .or(`starts_at.is.null,starts_at.lte.${simdi}`)
+    .or(`ends_at.is.null,ends_at.gt.${simdi}`)
+    .order("starts_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(1).maybeSingle();
   return data ?? null;
 }
 export async function getPromoBanners() {
