@@ -806,6 +806,26 @@ function Detay({ id, user, oynat, geri }) {
           </div>
         )}
 
+        {/* Kurucu Ekip etiketi (şeffaflık) — kurucu/admin içeriği açıkça belirtilir */}
+        {baslik.kurucu_icerigi && (
+          <div style={{ marginBottom: 20 }}>
+            <span
+              style={{
+                display: "inline-block",
+                padding: "5px 12px",
+                borderRadius: 999,
+                background: t.gradient,
+                color: "#0A0A0B",
+                fontSize: 12,
+                fontWeight: 800,
+                letterSpacing: 0.3,
+              }}
+            >
+              {s.kesfet.kurucuEkip}
+            </span>
+          </div>
+        )}
+
         {/* Üretici: ad + (varsa) sosyal linkler — profil bazlı, her videosunda görünür */}
         {uretici && (uretici.display_name || uretici.bio ||
           [uretici.instagram, uretici.tiktok, uretici.youtube, uretici.twitter, uretici.website].some(Boolean)) && (

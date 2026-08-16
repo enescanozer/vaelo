@@ -6,7 +6,7 @@ import { supabase } from "./supabaseClient";
 import { useLang } from "./i18n";
 import { t } from "./theme";
 
-export default function Upload({ user }) {
+export default function Upload({ user, admin }) {
   const { s } = useLang();
   const [basliklarim, setBasliklarim] = useState([]);
   const [secili, setSecili] = useState("yeni"); // "yeni" | mevcut başlık id'si
@@ -19,6 +19,7 @@ export default function Upload({ user }) {
   const [aciklama, setAciklama] = useState("");
   const [haftalik, setHaftalik] = useState(false); // yeni dizi: "her hafta yeni bölüm"
   const [icerikTipi, setIcerikTipi] = useState("ana"); // "ana" (film/bölüm) | "yapim" (BTS)
+  const [kurucuIcerigi, setKurucuIcerigi] = useState(false); // yalnız admin: "Kurucu Ekip" etiketi
 
   // Bölüm alanları
   const [bolumAd, setBolumAd] = useState("");
@@ -64,6 +65,8 @@ export default function Upload({ user }) {
             year: yil || null,
             description: aciklama || null,
             haftalik: tip === "dizi" ? haftalik : false,
+            // Yalnız admin işaretleyebilir; sunucu trigger'ı da non-admin'de false'a zorlar
+            kurucu_icerigi: admin ? kurucuIcerigi : false,
             status: "draft",
           })
           .select("id")
@@ -218,6 +221,16 @@ export default function Upload({ user }) {
                 <span>
                   {s.yukle.haftalik}
                   <span style={{ display: "block", color: t.dim, fontSize: 12 }}>{s.yukle.haftalikAlt}</span>
+                </span>
+              </label>
+            )}
+            {/* Kurucu içeriği: yalnız admin görür/işaretler (şeffaflık etiketi) */}
+            {admin && (
+              <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 14 }}>
+                <input type="checkbox" checked={kurucuIcerigi} onChange={(e) => setKurucuIcerigi(e.target.checked)} />
+                <span>
+                  {s.yukle.kurucuIcerigi}
+                  <span style={{ display: "block", color: t.dim, fontSize: 12 }}>{s.yukle.kurucuIcerigiAlt}</span>
                 </span>
               </label>
             )}

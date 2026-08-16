@@ -1453,6 +1453,14 @@ function Detay({ d, id, user, girisAc, oynat, geri }) {
         <Text style={[s.dim, { lineHeight: 21, marginBottom: 20 }]}>{baslik.description}</Text>
       )}
 
+      {/* Kurucu Ekip etiketi (şeffaflık) */}
+      {baslik.kurucu_icerigi && (
+        <View style={s.kurucuRozet}>
+          <Gradyan />
+          <Text style={s.kurucuRozetYazi}>{d.kurucuEkip}</Text>
+        </View>
+      )}
+
       {/* Üretici: ad + (varsa) sosyal linkler — profil bazlı */}
       {uretici && (uretici.display_name || uretici.bio ||
         [uretici.instagram, uretici.tiktok, uretici.youtube, uretici.twitter, uretici.website].some(Boolean)) && (
@@ -2163,6 +2171,15 @@ const s = StyleSheet.create({
     backgroundColor: t.surface,
   },
   sosyalPillYazi: { color: t.text, fontSize: 12 },
+  kurucuRozet: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 999,
+    overflow: "hidden",
+    marginBottom: 16,
+  },
+  kurucuRozetYazi: { color: "#0A0A0B", fontSize: 12, fontWeight: "800", letterSpacing: 0.3 },
   sonucSatiri: {
     flexDirection: "row",
     gap: 12,

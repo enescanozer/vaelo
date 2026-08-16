@@ -458,7 +458,7 @@ export default function App() {
             </div>
           }
         >
-          {sekme === "yukle" && creator && <Upload user={user} />}
+          {sekme === "yukle" && creator && <Upload user={user} admin={admin} />}
           {sekme === "studyo" && creator && <Studio />}
           {sekme === "panel" && moderator && <AdminPanel admin={admin} />}
           {sekme === "analiz" && admin && <AnalyticsPanel />}
