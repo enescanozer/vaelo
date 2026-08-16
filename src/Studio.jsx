@@ -14,11 +14,24 @@ const DURUM_RENK = {
   rejected: "#E2574C",
 };
 
-export default function Studio() {
+export default function Studio({ user }) {
   const { s } = useLang();
   const [satirlar, setSatirlar] = useState(null);
   const [aylar, setAylar] = useState([]); // aylık hakediş (rpc: creator_earnings)
   const [hata, setHata] = useState(null);
+  const [kopyalandi, setKopyalandi] = useState(false);
+
+  // Üreticiye özel paylaşım linki (?ref=<id>) — bu linkle gelen kayıtlar üreticiye atfedilir
+  const paylasimLinki = user ? `${window.location.origin}/?ref=${user.id}` : "";
+  async function linkKopyala() {
+    try {
+      await navigator.clipboard.writeText(paylasimLinki);
+      setKopyalandi(true);
+      setTimeout(() => setKopyalandi(false), 2000);
+    } catch {
+      /* pano erişimi reddedilirse sessizce geç */
+    }
+  }
 
   useEffect(() => {
     supabase.rpc("creator_stats").then(({ data, error }) => {
@@ -73,6 +86,49 @@ export default function Studio() {
         />
         <OzetKart etiket={s.studyo.yayindaBolum} deger={`${yayinda} / ${satirlar.length}`} />
       </div>
+
+      {/* Paylaşım linki: üretici kendi takipçilerini bu linkle çeker, kayıtlar atfedilir */}
+      {user && (
+        <div style={{ marginBottom: 36 }}>
+          <div style={{ fontFamily: t.display, fontWeight: 700, fontSize: 17, marginBottom: 6 }}>
+            {s.studyo.paylasimBaslik}
+          </div>
+          <div style={{ color: t.dim, fontSize: 13, marginBottom: 12 }}>{s.studyo.paylasimAciklama}</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <input
+              readOnly
+              value={paylasimLinki}
+              onFocus={(e) => e.target.select()}
+              style={{
+                flex: 1,
+                minWidth: 240,
+                padding: "10px 14px",
+                background: t.surface2,
+                border: `1px solid ${t.line}`,
+                borderRadius: 8,
+                color: t.text,
+                fontSize: 13,
+                outline: "none",
+              }}
+            />
+            <button
+              onClick={linkKopyala}
+              style={{
+                background: kopyalandi ? "none" : t.gradient,
+                color: kopyalandi ? t.dim : "#0A0A0B",
+                border: kopyalandi ? `1px solid ${t.line}` : "none",
+                borderRadius: 8,
+                padding: "10px 18px",
+                fontSize: 13,
+                fontWeight: 700,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {kopyalandi ? s.studyo.paylasimKopyalandi : s.studyo.paylasimKopyala}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Aylık hakediş (tahmini) */}
       {aylar.length > 0 && (

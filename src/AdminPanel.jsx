@@ -218,6 +218,7 @@ export default function AdminPanel({ admin }) {
           <Basvurular />
           <Roller />
           <Sponsorlar />
+          <ReferansSayaci />
           <Yarismalar />
           <DenetimKaydi />
         </>
@@ -753,6 +754,53 @@ function Roller() {
                 ))}
               </div>
             )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ————— Referans sayacı (üretici → getirdiği kayıt sayısı) —————
+function ReferansSayaci() {
+  const { s } = useLang();
+  const [liste, setListe] = useState(null);
+
+  useEffect(() => {
+    supabase.rpc("referans_sayaci").then(({ data }) => setListe(data ?? []));
+  }, []);
+
+  return (
+    <div style={{ marginTop: 48 }}>
+      <div style={{ fontFamily: t.display, fontWeight: 700, fontSize: 18, marginBottom: 6 }}>
+        {s.panel.referans.baslik}
+      </div>
+      <div style={{ color: t.dim, fontSize: 13, marginBottom: 16 }}>{s.panel.referans.aciklama}</div>
+      {liste !== null && liste.length === 0 && (
+        <div style={{ color: t.dim, fontSize: 13 }}>{s.panel.referans.yok}</div>
+      )}
+      <div style={{ display: "grid", gap: 8 }}>
+        {(liste ?? []).map((r) => (
+          <div
+            key={r.uretici_id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              padding: "10px 14px",
+              background: t.surface,
+              border: `1px solid ${t.line}`,
+              borderRadius: 8,
+              fontSize: 13,
+            }}
+          >
+            <span style={{ fontWeight: 600, flex: 1, minWidth: 0 }}>
+              {r.uretici_ad || r.uretici_id}
+            </span>
+            <span style={{ color: t.accent, fontWeight: 700 }}>
+              {Number(r.kayit_sayisi).toLocaleString(s.locale)}
+            </span>
+            <span style={{ color: t.dim }}>{s.panel.referans.kayit}</span>
           </div>
         ))}
       </div>

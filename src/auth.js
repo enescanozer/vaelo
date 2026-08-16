@@ -7,10 +7,18 @@ export function signIn(email, sifre) {
 }
 
 export function signUp(email, sifre, gorunenAd) {
+  // Paylaşım linkiyle (?ref=<uretici_id>) gelindiyse referansı kayıt metadata'sına ekle.
+  // Sunucu tetikleyicisi (handle_new_user) yalnız gerçek creator/admin id'sini kabul eder.
+  let ref = null;
+  try {
+    ref = localStorage.getItem("vaelo_ref") || null;
+  } catch {
+    /* localStorage erişilemezse ref'siz devam */
+  }
   return supabase.auth.signUp({
     email,
     password: sifre,
-    options: { data: { display_name: gorunenAd } },
+    options: { data: { display_name: gorunenAd, ...(ref ? { ref } : {}) } },
   });
 }
 

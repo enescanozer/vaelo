@@ -459,7 +459,7 @@ export default function App() {
           }
         >
           {sekme === "yukle" && creator && <Upload user={user} admin={admin} />}
-          {sekme === "studyo" && creator && <Studio />}
+          {sekme === "studyo" && creator && <Studio user={user} />}
           {sekme === "panel" && moderator && <AdminPanel admin={admin} />}
           {sekme === "analiz" && admin && <AnalyticsPanel />}
         </Suspense>

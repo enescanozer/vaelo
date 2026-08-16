@@ -69,6 +69,15 @@ class HataYakalayici extends React.Component {
 // Root'u idempotent tut: HMR main.jsx'i yeniden çalıştırdığında createRoot'u
 // aynı #root'a ikinci kez çağırmak "container already passed" uyarısı verip
 // ağaçları çakıştırıyordu. Mevcut root'u saklayıp yeniden render ediyoruz.
+// Paylaşım linki attribution: ?ref=<uretici_id> geldiyse (uuid biçimindeyse) sakla.
+// Kayıt sırasında signUp bunu metadata'ya ekler; sunucu yalnız gerçek üreticiyi kabul eder.
+try {
+  const ref = new URLSearchParams(window.location.search).get("ref");
+  if (ref && /^[0-9a-f-]{36}$/i.test(ref)) localStorage.setItem("vaelo_ref", ref);
+} catch {
+  /* localStorage yoksa sessizce geç */
+}
+
 const kap = document.getElementById("root");
 const kok = (globalThis.__latentKok ??= createRoot(kap));
 kok.render(
