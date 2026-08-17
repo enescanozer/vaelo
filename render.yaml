@@ -1,0 +1,41 @@
+# Render Blueprint (Infrastructure as Code) — Vaelo "moderation-service".
+# Fly.io kredi kartı istediği için hosting Render'ın KART GEREKTİRMEYEN ücretsiz katmanına taşınır.
+# Bu dosya repo KÖKÜNDE durur; Docker build context alt dizin: moderation-service/.
+# Render bu Blueprint'i (New → Blueprint) okuyup Dockerfile'ı doğrudan derler.
+#
+# ⚠️ ÜCRETSIZ KATMAN SINIRLARI (deploy öncesi oku):
+#  - RAM 512 MB. Servis torch + transformers (NSFW görsel modeli) yüklüyor (~1.5-2 GB) →
+#    tam imaj free tier'da BÜYÜK OLASILIKLA OOM olur. Forum/nickname yalnız /text (blocklist)
+#    kullanır; görsel model gerekmez ama kod başlangıçta import ediyor. Çözüm için rapora bak.
+#  - Free web service 15 dk boştan sonra UYUR; soğuk başlatma ~30-60 sn. forum-post moderasyon
+#    timeout'u 6 sn → uykudan sonraki İLK mesaj timeout ile reddedilir (fail-closed). Sonrakiler çalışır.
+
+services:
+  - type: web                       # Web Service
+    name: vaelo-moderation
+    runtime: docker                 # Docker ortamı (eski Render sözdiziminde: env: docker)
+    plan: free                      # kart gerektirmeyen ücretsiz katman
+    region: oregon                  # ücretsiz katman bölgeleri: oregon / ohio / virginia / frankfurt / singapore
+    dockerfilePath: ./moderation-service/Dockerfile
+    dockerContext: ./moderation-service
+    healthCheckPath: /health        # main.py: GET /health → {"ok": true}
+    autoDeploy: false               # MONOREPO: web app commit'lerinde gereksiz rebuild olmasın diye
+                                    # kapalı. Elle "Manual Deploy" ile ya da Render CLI ile tetikle.
+    envVars:
+      # Uygulama bu portta dinliyor (Dockerfile: uvicorn --port 8080). Render bu porta yönlendirir.
+      - key: PORT
+        value: "8080"
+
+      # ZORUNLU — SIR. Supabase'teki COMPUTE_SERVICE_TOKEN ile AYNI değer olmalı (bearer auth).
+      # Repo'ya YAZMA: sync:false → değer yalnız Render Dashboard'da elle girilir.
+      - key: COMPUTE_SERVICE_TOKEN
+        sync: false
+
+      # OPSİYONEL — SIR. Metin toksisitesi (Perspective API). Yoksa /text yalnız blocklist ile çalışır.
+      - key: PERSPECTIVE_API_KEY
+        sync: false
+
+      # OPSİYONEL. Yalnız VİDEO karesi moderasyonu (Tier 1) için CF Stream hesap kodu.
+      # Forum/nickname /text için GEREKMEZ. (Video/Cloudflare player koduyla ilgisizdir.)
+      - key: CF_CODE
+        sync: false
