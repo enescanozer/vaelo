@@ -768,3 +768,57 @@ export async function forumTakipIdleri(userId) {
   const { data } = await supabase.from("forum_thread_follows").select("thread_id").eq("user_id", userId);
   return (data ?? []).map((r) => r.thread_id);
 }
+
+// ————— Bölüm/başlık CANLI SOHBETİ (Twitch-tarzı düz akış + Supabase Realtime) —————
+// oda: 'ep:<video_id>' (bölüm) | 'title:<title_id>' (film/dizi geneli).
+// Yazma YALNIZ forum-post 'sohbet' action'ından (moderasyon FAIL-CLOSED + mute/ban + oda kilidi).
+// Okuma + realtime herkese açık RLS ile (nickname satıra denormalize → payload'da hazır).
+
+// İlk yükleme: odanın son mesajları (eskiden yeniye).
+export async function sohbetGetir(oda, limit = 100) {
+  const { data, error } = await supabase
+    .from("sohbet_mesajlari")
+    .select("id, oda, user_id, nickname, mesaj, is_spoiler, created_at")
+    .eq("oda", oda)
+    .eq("status", "visible")
+    .is("deleted_at", null)
+    .order("created_at", { ascending: true })
+    .limit(limit);
+  if (error) throw error;
+  return data ?? [];
+}
+
+// Oda kilitli mi (composer kilit uyarısını gösterir)
+export async function sohbetOdaDurum(oda) {
+  const { data } = await supabase.from("sohbet_odalari").select("locked").eq("oda", oda).maybeSingle();
+  return !!data?.locked;
+}
+
+// Mesaj gönder (moderasyon FAIL-CLOSED edge function'da). Dönüş: { ok, mesaj } | { hata, kod }
+export const sohbetGonder = (p) => forumYaz({ action: "sohbet", ...p });
+
+// Realtime abonelik: yeni mesaj (INSERT) ve kaldırma/silme (UPDATE) olayları.
+export function sohbetAbone(oda, onInsert, onUpdate) {
+  const kanal = supabase
+    .channel(`sohbet:${oda}`)
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "sohbet_mesajlari", filter: `oda=eq.${oda}` },
+      (p) => onInsert && onInsert(p.new)
+    )
+    .on(
+      "postgres_changes",
+      { event: "UPDATE", schema: "public", table: "sohbet_mesajlari", filter: `oda=eq.${oda}` },
+      (p) => onUpdate && onUpdate(p.new)
+    )
+    .subscribe();
+  return kanal;
+}
+export const sohbetAbonelikBirak = (kanal) => {
+  if (kanal) supabase.removeChannel(kanal);
+};
+
+// Kendi mesajını sil (soft) / yetkili kaldır / oda kilidi (yetkili)
+export const sohbetMesajSil = (id) => supabase.rpc("sohbet_mesaj_sil", { p_id: id });
+export const sohbetMesajKaldir = (id) => supabase.rpc("sohbet_mesaj_kaldir", { p_id: id });
+export const sohbetOdaKilit = (oda, locked) => supabase.rpc("sohbet_oda_kilit", { p_oda: oda, p_locked: locked });

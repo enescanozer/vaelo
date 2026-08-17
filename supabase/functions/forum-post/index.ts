@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
     const content = String(g?.content ?? "").trim();
     const lang = typeof g?.lang === "string" ? g.lang : "en";
     const isSpoiler = !!g?.is_spoiler;
-    if (!["thread", "reply", "edit"].includes(action)) return yanit({ hata: "action", kod: "action" }, 400);
+    if (!["thread", "reply", "edit", "sohbet"].includes(action)) return yanit({ hata: "action", kod: "action" }, 400);
     if (!content || content.length > MAX) return yanit({ hata: "bicim", kod: "bicim" }, 400);
 
     const servis = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -76,6 +76,24 @@ Deno.serve(async (req) => {
     if (mod === "blocked") return yanit({ hata: "moderasyon", kod: "moderasyon" }, 400);
     if (mod === "unavailable") return yanit({ hata: "gonderilemedi", kod: "gonderilemedi" }, 503);
     // mod === "temiz" → devam
+
+    // ————— Canlı sohbet mesajı (düz akış; forum thread'lerinden AYRI) —————
+    if (action === "sohbet") {
+      const oda = String(g?.oda ?? "").trim();
+      // Oda anahtarı biçimi: 'ep:<uuid>' | 'title:<uuid>' — serbest metin kabul edilmez.
+      if (!/^(ep|title):[0-9a-fA-F-]{36}$/.test(oda)) return yanit({ hata: "bicim", kod: "bicim" }, 400);
+      // Oda kilidi → yeni mesaj yok (moderasyon durumu)
+      const { data: odaDurum } = await servis.from("sohbet_odalari").select("locked").eq("oda", oda).maybeSingle();
+      if (odaDurum?.locked) return yanit({ hata: "kilitli", kod: "kilitli" }, 403);
+      // nickname: herkese açık ad (üretici rozetiyle AYNI display_name) — service role profiles okur
+      const { data: pr } = await servis.from("profiles").select("display_name").eq("id", user.id).single();
+      const nickname = String(pr?.display_name || "user").slice(0, 40);
+      const { data: row, error } = await servis.from("sohbet_mesajlari")
+        .insert({ oda, user_id: user.id, nickname, mesaj: content, is_spoiler: isSpoiler })
+        .select("id, oda, user_id, nickname, mesaj, is_spoiler, created_at").single();
+      if (error) { console.error(error.message); return yanit({ hata: "sunucu", kod: "sunucu" }, 500); }
+      return yanit({ ok: true, mesaj: row });
+    }
 
     if (action === "thread") {
       const titleId = g?.title_id;
