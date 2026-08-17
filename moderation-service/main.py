@@ -31,6 +31,11 @@ class Tier1Istek(BaseModel):
     text: dict = {}                  # {name, description}
 
 
+class TextIstek(BaseModel):
+    text: str
+    lang: str = "en"
+
+
 def _auth(authorization: str):
     if not SERVICE_TOKEN or authorization != f"Bearer {SERVICE_TOKEN}":
         raise HTTPException(status_code=401, detail="unauthorized")
@@ -39,6 +44,15 @@ def _auth(authorization: str):
 @app.get("/health")
 def health():
     return {"ok": True}
+
+
+# Kısa metin (takma ad, yorum vb.) için keyword/regex blocklist taraması. Video/kare YOK,
+# Perspective YOK (API anahtarı gerektirmesin, senkron+hızlı olsun) — yalnız blocklist_tara.
+@app.post("/text")
+def text_moderation(req: TextIstek, authorization: str = Header(default="")):
+    _auth(authorization)
+    kw = blocklist_tara(req.text or "", req.lang)
+    return {"blocked": kw["hit"], "terms": kw["terms"]}
 
 
 @app.post("/tier1")

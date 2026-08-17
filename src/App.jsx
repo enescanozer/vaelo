@@ -19,6 +19,7 @@ const Studio = lazy(() => import("./Studio"));
 const AdminPanel = lazy(() => import("./AdminPanel"));
 const AnalyticsPanel = lazy(() => import("./AnalyticsPanel"));
 import Profile from "./Profile";
+import TakmaAdKur from "./TakmaAdKur";
 import AyarlarModal from "./AyarlarModal";
 import SifreYenile from "./SifreYenile.jsx";
 
@@ -496,6 +497,10 @@ export default function App() {
           kapat={() => setProfilAcik(false)}
           yenile={profilYenile}
         />
+      )}
+      {/* İlk-kurulum: takma ad seçilmemişse zorunlu modal (kapatılamaz) */}
+      {user && profile && !profile.display_name_chosen && (
+        <TakmaAdKur profile={profile} yenile={profilYenile} />
       )}
       {ayarlarAcik && <AyarlarModal kapat={() => setAyarlarAcik(false)} />}
       {sifreYenileAcik && (

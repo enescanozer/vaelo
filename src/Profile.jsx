@@ -1,6 +1,7 @@
 // Profil modalı: görünen adı düzenleme + e-posta doğrulama durumu / yeniden gönderme
 import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
+import { takmaAdAyarla } from "./auth.js";
 import { useLang } from "./i18n";
 import { t } from "./theme";
 
@@ -32,29 +33,40 @@ export default function Profile({ user, profile, kapat, yenile }) {
     e.preventDefault();
     setHata(null);
     setBekliyor(true);
-    // Sosyal alanlar boşsa null yaz (ikon gösterilmemesi için). Değerler ham saklanır;
-    // güvenli URL'e çevrim görüntüleme tarafında (sosyalUrl) yapılır.
-    const bosNull = (v) => (v.trim() ? v.trim() : null);
-    const guncelleme = { display_name: ad };
+
+    // Takma ad: değiştiyse ya da henüz seçilmemişse edge function'dan (doğrulama+moderasyon+tekillik)
+    const yeni = ad.trim();
+    if (yeni !== (profile?.display_name ?? "") || !profile?.display_name_chosen) {
+      const sonuc = await takmaAdAyarla(yeni, (s.locale || "en").slice(0, 2));
+      if (sonuc.hata) {
+        setBekliyor(false);
+        setHata(s.profil.takmaAd.hata[sonuc.kod] ?? s.profil.takmaAd.hata.sunucu);
+        return;
+      }
+    }
+
+    // Sosyal alanlar (yalnız üretici) — doğrudan update. Boşsa null (ikon gösterilmez).
     if (uretici) {
-      Object.assign(guncelleme, {
-        bio: bosNull(bio),
-        instagram: bosNull(instagram),
-        tiktok: bosNull(tiktok),
-        youtube: bosNull(youtube),
-        twitter: bosNull(twitter),
-        website: bosNull(website),
-      });
+      const bosNull = (v) => (v.trim() ? v.trim() : null);
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          bio: bosNull(bio),
+          instagram: bosNull(instagram),
+          tiktok: bosNull(tiktok),
+          youtube: bosNull(youtube),
+          twitter: bosNull(twitter),
+          website: bosNull(website),
+        })
+        .eq("id", user.id);
+      if (error) {
+        setBekliyor(false);
+        setHata(error.message);
+        return;
+      }
     }
-    const { error } = await supabase
-      .from("profiles")
-      .update(guncelleme)
-      .eq("id", user.id);
+
     setBekliyor(false);
-    if (error) {
-      setHata(error.message);
-      return;
-    }
     yenile();
     kapat();
   }

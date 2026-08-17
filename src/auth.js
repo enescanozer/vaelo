@@ -26,6 +26,30 @@ export function signOut() {
   return supabase.auth.signOut();
 }
 
+// Takma ad biçimi (edge function BICIM ile AYNI): 3-20, harf (TR dahil) + rakam + alt çizgi
+export const TAKMA_AD_BICIM = /^[A-Za-z0-9_ğüşıöçİĞÜŞÖÇ]{3,20}$/;
+
+// Takma adı ayarlar: doğrulama + moderasyon + tekillik sunucuda (set-nickname edge function).
+// Dönüş: { ok, display_name } | { hata, kod } (kod: giris|bicim|moderasyon|alinmis|sunucu).
+export async function takmaAdAyarla(nickname, lang = "en") {
+  const { data, error } = await supabase.functions.invoke("set-nickname", {
+    body: { nickname, lang },
+  });
+  // invoke non-2xx'te error döner + data null; gerçek {kod}'u yanıt gövdesinden çıkar
+  if (error) {
+    let kod = "sunucu";
+    try {
+      const g = await error.context?.json?.();
+      if (g?.kod) kod = g.kod;
+    } catch {
+      /* gövde JSON değil */
+    }
+    return { hata: true, kod };
+  }
+  if (data?.hata) return { hata: true, kod: data.kod ?? "sunucu" };
+  return { ok: true, display_name: data.display_name };
+}
+
 // Google ile giriş (OAuth). Google onay ekranına yönlendirir; geri dönünce
 // supabase-js URL'deki oturumu otomatik yakalar (detectSessionInUrl varsayılan).
 // ÇALIŞMASI İÇİN: Supabase projesinde Google sağlayıcısı açık + Google Cloud'da

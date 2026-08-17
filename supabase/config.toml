@@ -408,6 +408,11 @@ verify_jwt = false
 [functions.create-upload]
 verify_jwt = true
 
+[functions.set-nickname]
+verify_jwt = true
+# Takma ad: biçim + Fly /text blocklist proxy'si + tekillik. Secret'lar (opsiyonel):
+# COMPUTE_SERVICE_URL, COMPUTE_SERVICE_TOKEN (moderate-tier1 ile aynı).
+
 [functions.add-caption]
 verify_jwt = true
 
