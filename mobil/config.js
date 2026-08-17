@@ -5,4 +5,4 @@ export const SUPABASE_URL = "https://xcrzycuikeoyzbozoayy.supabase.co";
 export const SUPABASE_ANON_KEY = "sb_publishable_m8iiWYA9WhFwQ26t-CFj-A_Y86UlkZv";
 
 // Cloudflare Stream hesap kodu (web ile aynı değer)
-export const CF_CODE = "CF_HESAP_KODUNUZ";
+export const CF_CODE = "p5urunciefhqg37e";
