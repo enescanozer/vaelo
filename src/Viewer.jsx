@@ -735,7 +735,6 @@ function Detay({ id, user, oynat, forumAc, geri }) {
   const [ekli, setEkli] = useState(null); // null: bilinmiyor, true/false: Listem durumu
   const [kopyalandi, setKopyalandi] = useState(false);
   const [uretici, setUretici] = useState(null); // üretici herkese açık kartı (ad + sosyal)
-  const [profilGoster, setProfilGoster] = useState(false); // creator profil modalı
 
   async function paylas() {
     const url = `${window.location.origin}${window.location.pathname}?b=${id}`;
@@ -827,9 +826,6 @@ function Detay({ id, user, oynat, forumAc, geri }) {
       </div>
 
       <div style={{ padding: `24px ${t.pad} 64px` }}>
-        <Aciklama metin={baslik.description} />
-
-
         {/* Kurucu Ekip etiketi (şeffaflık) — kurucu/admin içeriği açıkça belirtilir */}
         {baslik.kurucu_icerigi && (
           <div style={{ marginBottom: 20 }}>
@@ -850,41 +846,12 @@ function Detay({ id, user, oynat, forumAc, geri }) {
           </div>
         )}
 
-        {/* Üretici (creator): avatar + nickname + "Creator" etiketi + sosyal + Profil Gör */}
-        {uretici && (uretici.display_name || uretici.bio ||
-          [uretici.instagram, uretici.tiktok, uretici.youtube, uretici.twitter, uretici.website].some(Boolean)) && (
-          <div style={{ marginBottom: 28, display: "flex", alignItems: "flex-start", gap: 14, flexWrap: "wrap" }}>
-            <Avatar ad={uretici.display_name} boyut={46} />
-            <div style={{ flex: 1, minWidth: 180 }}>
-              <div style={{ fontSize: 15, fontWeight: 700 }}>{uretici.display_name || s.kesfet.uretici}</div>
-              <div style={{ color: t.dim, fontSize: 12 }}>{s.kesfet.uretici}</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-                {[
-                  ["instagram", "Instagram", uretici.instagram],
-                  ["tiktok", "TikTok", uretici.tiktok],
-                  ["youtube", "YouTube", uretici.youtube],
-                  ["twitter", "X", uretici.twitter],
-                  ["website", s.kesfet.website, uretici.website],
-                ].map(([p, etiket, ham]) => {
-                  const url = sosyalUrl(p, ham);
-                  if (!url) return null;
-                  return (
-                    <a key={p} href={url} target="_blank" rel="noopener noreferrer"
-                      style={{ fontSize: 12, color: t.text, textDecoration: "none", padding: "5px 12px", border: `1px solid ${t.line}`, borderRadius: 999, background: t.surface }}>
-                      {etiket}
-                    </a>
-                  );
-                })}
-              </div>
-            </div>
-            <button
-              onClick={() => setProfilGoster(true)}
-              style={{ background: "none", border: `1px solid ${t.line}`, borderRadius: 8, color: t.text, padding: "8px 16px", fontSize: 13, whiteSpace: "nowrap" }}
-            >
-              {s.kesfet.profilGor}
-            </button>
-          </div>
-        )}
+        <Aciklama metin={baslik.description} />
+
+        {/* Üretici kartı — açıklamanın ALTINDA SÜREKLİ AÇIK (buton/modal YOK) */}
+        <div style={{ marginBottom: 28 }}>
+          <UreticiKarti uretici={uretici} />
+        </div>
 
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: dizi ? 32 : 0 }}>
         {!dizi && baslik.videos[0] && (
@@ -1020,11 +987,6 @@ function Detay({ id, user, oynat, forumAc, geri }) {
         </div>
       )}
       </div>
-
-      {/* Creator profil modalı (herkese açık kart: nickname + sosyal + bio) */}
-      {profilGoster && uretici && (
-        <CreatorProfil uretici={uretici} kapat={() => setProfilGoster(false)} />
-      )}
     </div>
   );
 }
@@ -1087,47 +1049,71 @@ function Avatar({ ad, boyut = 40 }) {
   );
 }
 
-// Creator profil modalı — mevcut public üretici kartını (uretici_kartlari) gösterir. Yeni profil
-// sistemi/tablosu YOK; Profile (kendi profilini düzenleme) sistemine dokunulmaz.
-function CreatorProfil({ uretici, kapat }) {
+// Üretici kartı — video/başlık açıklamasının ALTINDA SÜREKLİ AÇIK gösterilir (buton/modal YOK).
+// Kaynak: public uretici_kartlari view'ı. Profile (kendi profilini düzenleme) sistemine dokunulmaz.
+function UreticiKarti({ uretici }) {
   const { s } = useLang();
-  useEffect(() => {
-    const dinle = (e) => e.key === "Escape" && kapat();
-    window.addEventListener("keydown", dinle);
-    return () => window.removeEventListener("keydown", dinle);
-  }, [kapat]);
-  const sosyaller = [
+  if (!uretici) return null;
+  const linkler = [
     ["instagram", "Instagram", uretici.instagram],
     ["tiktok", "TikTok", uretici.tiktok],
     ["youtube", "YouTube", uretici.youtube],
     ["twitter", "X", uretici.twitter],
     ["website", s.kesfet.website, uretici.website],
-  ];
+  ].filter(([p, , ham]) => sosyalUrl(p, ham));
+  // Gösterilecek içerik yoksa kartı hiç render etme
+  if (!uretici.display_name && !uretici.bio && linkler.length === 0) return null;
   return (
-    <div onClick={kapat} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: 380, maxWidth: "92vw", background: t.surface, border: `1px solid ${t.line}`, borderRadius: 12, padding: 24 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
-          <Avatar ad={uretici.display_name} boyut={54} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 17, fontWeight: 800, fontFamily: t.display }}>{uretici.display_name || s.kesfet.uretici}</div>
-            <div style={{ color: t.dim, fontSize: 12 }}>{s.kesfet.uretici}</div>
+    <div
+      style={{
+        maxWidth: 640,
+        padding: 20,
+        background: t.surface2,
+        border: `1px solid ${t.line}`,
+        borderRadius: 14,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <Avatar ad={uretici.display_name} boyut={48} />
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              color: t.accent,
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: 0.7,
+              textTransform: "uppercase",
+            }}
+          >
+            {s.kesfet.uretici}
           </div>
-          <button onClick={kapat} aria-label={s.forum.kapat} style={{ background: "none", border: "none", color: t.dim, fontSize: 20, cursor: "pointer" }}>✕</button>
-        </div>
-        {uretici.bio && <div style={{ color: t.dim, fontSize: 14, lineHeight: 1.5, marginBottom: 16 }}>{uretici.bio}</div>}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {sosyaller.map(([p, etiket, ham]) => {
-            const url = sosyalUrl(p, ham);
-            if (!url) return null;
-            return (
-              <a key={p} href={url} target="_blank" rel="noopener noreferrer"
-                style={{ fontSize: 12, color: t.text, textDecoration: "none", padding: "6px 12px", border: `1px solid ${t.line}`, borderRadius: 999, background: t.surface2 }}>
-                {etiket}
-              </a>
-            );
-          })}
+          <div style={{ fontSize: 17, fontWeight: 700, fontFamily: t.display, marginTop: 1 }}>
+            {uretici.display_name || s.kesfet.uretici}
+          </div>
         </div>
       </div>
+
+      {uretici.bio && (
+        <div style={{ color: t.dim, fontSize: 14, lineHeight: 1.6, marginTop: 14, whiteSpace: "pre-wrap" }}>
+          {uretici.bio}
+        </div>
+      )}
+
+      {linkler.length > 0 && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 16 }}>
+          {linkler.map(([p, etiket, ham]) => (
+            <a
+              key={p}
+              href={sosyalUrl(p, ham)}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontSize: 12, color: t.text, textDecoration: "none", padding: "7px 14px", border: `1px solid ${t.line}`, borderRadius: 999, background: t.surface }}
+            >
+              {etiket}
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1151,7 +1137,6 @@ function Oynatici({ video, baslik, baslangic = 0, user, oynat, geri, girisAc, fo
   // Video-altı creator metadata — player/iframe/SDK mantığından TAMAMEN BAĞIMSIZ ayrı fetch.
   // (uretici state'i değişince iframe render'ı etkilenmez → oynatıcı reset OLMAZ.)
   const [uretici, setUretici] = useState(null);
-  const [profilGoster, setProfilGoster] = useState(false);
   useEffect(() => {
     let aktif = true;
     setUretici(null);
@@ -1417,10 +1402,10 @@ function Oynatici({ video, baslik, baslangic = 0, user, oynat, geri, girisAc, fo
         )}
       </div>
 
-      {/* Video altı metadata: başlık + creator + açıklama (screenshot düzeni). Player'a DOKUNMAZ —
+      {/* Video altı metadata: başlık + açıklama + üretici kartı. Player'a DOKUNMAZ —
           yalnız iframe'in ALTINA sibling UI; uretici state'i iframe render'ını etkilemez. */}
-      <div style={{ padding: `20px ${t.pad} 0`, maxWidth: 760 }}>
-        <div style={{ fontFamily: t.display, fontWeight: 800, fontSize: 22 }}>
+      <div style={{ padding: `24px ${t.pad} 0`, maxWidth: 760 }}>
+        <div style={{ fontFamily: t.display, fontWeight: 800, fontSize: 24, lineHeight: 1.15 }}>
           {baslik.name}
           {baslik.kind === "dizi" && (
             <span style={{ color: t.dim, fontWeight: 400, fontSize: 15 }}>
@@ -1430,43 +1415,11 @@ function Oynatici({ video, baslik, baslangic = 0, user, oynat, geri, girisAc, fo
           )}
         </div>
 
-        {/* Creator: avatar + nickname + "Creator" etiketi + sosyal + Profil Gör */}
-        {uretici && (uretici.display_name || uretici.bio ||
-          [uretici.instagram, uretici.tiktok, uretici.youtube, uretici.twitter, uretici.website].some(Boolean)) && (
-          <div style={{ marginTop: 16, display: "flex", alignItems: "flex-start", gap: 14, flexWrap: "wrap" }}>
-            <Avatar ad={uretici.display_name} boyut={46} />
-            <div style={{ flex: 1, minWidth: 180 }}>
-              <div style={{ fontSize: 15, fontWeight: 700 }}>{uretici.display_name || s.kesfet.uretici}</div>
-              <div style={{ color: t.dim, fontSize: 12 }}>{s.kesfet.uretici}</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-                {[
-                  ["instagram", "Instagram", uretici.instagram],
-                  ["tiktok", "TikTok", uretici.tiktok],
-                  ["youtube", "YouTube", uretici.youtube],
-                  ["twitter", "X", uretici.twitter],
-                  ["website", s.kesfet.website, uretici.website],
-                ].map(([p, etiket, ham]) => {
-                  const url = sosyalUrl(p, ham);
-                  if (!url) return null;
-                  return (
-                    <a key={p} href={url} target="_blank" rel="noopener noreferrer"
-                      style={{ fontSize: 12, color: t.text, textDecoration: "none", padding: "5px 12px", border: `1px solid ${t.line}`, borderRadius: 999, background: t.surface }}>
-                      {etiket}
-                    </a>
-                  );
-                })}
-              </div>
-            </div>
-            <button onClick={() => setProfilGoster(true)}
-              style={{ background: "none", border: `1px solid ${t.line}`, borderRadius: 8, color: t.text, padding: "8px 16px", fontSize: 13, whiteSpace: "nowrap" }}>
-              {s.kesfet.profilGor}
-            </button>
-          </div>
-        )}
-
-        <div style={{ marginTop: 16 }}>
+        {/* Açıklama (üstte) → Üretici kartı (altında, SÜREKLİ AÇIK) */}
+        <div style={{ marginTop: 14 }}>
           <Aciklama metin={baslik.description} />
         </div>
+        <UreticiKarti uretici={uretici} />
       </div>
 
       {/* İzlenen videonun 1–10 halk oylaması (player'ın hemen altında) */}
@@ -1474,19 +1427,14 @@ function Oynatici({ video, baslik, baslangic = 0, user, oynat, geri, girisAc, fo
 
       {/* Topluluk: forum drawer'ı açar. Overlay olduğu için oynatıcı ETKİLENMEZ (video durmaz). */}
       {forumAc && (
-        <div style={{ padding: `0 ${t.pad} 32px` }}>
+        <div style={{ padding: `0 ${t.pad} 40px` }}>
           <button
             onClick={() => forumAc(baslik.id, video.id, baslik.name, video.name || s.genel.bolumNo(video.episode ?? 1))}
-            style={{ background: "none", border: `1px solid ${t.accent}`, borderRadius: 8, color: t.text, padding: "10px 18px", fontSize: 14, display: "inline-flex", alignItems: "center", gap: 8 }}
+            style={{ background: "none", border: `1px solid ${t.accent}`, borderRadius: 999, color: t.accent, padding: "10px 20px", fontSize: 14, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}
           >
             💬 {baslik.kind === "dizi" ? s.forum.bolumBaslik : s.forum.baslik}
           </button>
         </div>
-      )}
-
-      {/* Creator profil modalı — mevcut public üretici kartı */}
-      {profilGoster && uretici && (
-        <CreatorProfil uretici={uretici} kapat={() => setProfilGoster(false)} />
       )}
     </div>
   );
