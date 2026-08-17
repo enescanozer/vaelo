@@ -664,3 +664,107 @@ export function sosyalUrl(platform, ham) {
     default: return null;
   }
 }
+
+// ————— Forum (topluluk) —————
+// Yazma (thread/reply/edit) YALNIZ forum-post Edge Function'ından geçer (moderasyon FAIL-CLOSED
+// + mute/ban + kilit backend'de zorunlu). Bileşenler doğrudan forum_posts INSERT yapamaz (RLS).
+async function forumYaz(body) {
+  const { data, error } = await supabase.functions.invoke("forum-post", { body });
+  if (error) {
+    let kod = "sunucu";
+    try {
+      const g = await error.context?.json?.();
+      if (g?.kod) kod = g.kod;
+    } catch {
+      /* gövde JSON değil */
+    }
+    return { hata: true, kod };
+  }
+  if (data?.hata) return { hata: true, kod: data.kod ?? "sunucu" };
+  return { ok: true, ...data };
+}
+export const forumKonuOlustur = (p) => forumYaz({ action: "thread", ...p });
+export const forumYanitla = (p) => forumYaz({ action: "reply", ...p });
+export const forumDuzenle = (p) => forumYaz({ action: "edit", ...p });
+
+// Okuma (yazar display_name + sayımlar RPC'de birleştirilir; profiles self-only RLS'i aşılır)
+export async function getForumKonular(titleId, episodeId = null) {
+  const { data, error } = await supabase.rpc("forum_konular", { p_title: titleId, p_episode: episodeId });
+  if (error) throw error;
+  return data ?? [];
+}
+export async function getForumMesajlar(threadId) {
+  const { data, error } = await supabase.rpc("forum_mesajlar", { p_thread: threadId });
+  if (error) throw error;
+  return data ?? [];
+}
+
+// Kendi mesajını sil (soft) — RPC (yalnız sahibi)
+export const forumMesajSil = (postId) => supabase.rpc("forum_post_sil", { p_post: postId });
+
+// Beğeni (RLS: kendi; duplicate → PK 23505). userId çağıran taraftan (RLS with check user_id=auth.uid()).
+export const forumBegen = (postId, userId) =>
+  supabase.from("forum_post_likes").insert({ post_id: postId, user_id: userId });
+export const forumBegenKaldir = (postId, userId) =>
+  supabase.from("forum_post_likes").delete().eq("post_id", postId).eq("user_id", userId);
+
+// Rapor (RLS: reporter kendi; unique(post,reporter) → tekrar rapor engeli 23505)
+export const forumRaporla = (postId, userId, reason, description = null) =>
+  supabase.from("forum_reports").insert({ post_id: postId, reporter_id: userId, reason, description });
+
+// Takip (RLS: kendi)
+export async function forumTakipDurum(threadId, userId) {
+  if (!userId) return false;
+  const { data } = await supabase
+    .from("forum_thread_follows").select("thread_id")
+    .eq("thread_id", threadId).eq("user_id", userId).maybeSingle();
+  return !!data;
+}
+export const forumTakipEt = (threadId, userId) =>
+  supabase.from("forum_thread_follows").insert({ thread_id: threadId, user_id: userId });
+export const forumTakipBirak = (threadId, userId) =>
+  supabase.from("forum_thread_follows").delete().eq("thread_id", threadId).eq("user_id", userId);
+
+// ————— Forum moderasyonu / yaptırım (yetkili: is_moderator RPC'lerde denetlenir) —————
+export async function getForumRaporKuyrugu() {
+  const { data } = await supabase.rpc("forum_rapor_kuyrugu");
+  return data ?? [];
+}
+export const forumPostKaldir = (postId) => supabase.rpc("forum_post_kaldir", { p_post: postId });
+export const forumThreadKaldir = (threadId) => supabase.rpc("forum_thread_kaldir", { p_thread: threadId });
+export const forumThreadKilitle = (threadId, locked) =>
+  supabase.rpc("forum_thread_kilitle", { p_thread: threadId, p_locked: locked });
+export const forumReportKarar = (reportId, status) =>
+  supabase.rpc("forum_report_karar", { p_report: reportId, p_status: status });
+export const forumKullaniciAra = async (q) => {
+  const { data } = await supabase.rpc("forum_kullanici_ara", { p_q: q });
+  return data ?? [];
+};
+export const forumYaptirimUygula = (userId, action, reason, expires) =>
+  supabase.rpc("forum_yaptirim_uygula", { p_user: userId, p_action: action, p_reason: reason, p_expires: expires });
+export const forumYaptirimGecmisi = async (userId) => {
+  const { data } = await supabase.rpc("forum_yaptirim_gecmisi", { p_user: userId });
+  return data ?? [];
+};
+
+// ————— Bağış (Creator Support) — YALNIZ parametrik feature flag —————
+export async function getBagisAyarlari() {
+  const { data } = await supabase.rpc("bagis_ayarlari");
+  return data?.[0] ?? null;
+}
+// Admin app_settings key/value yazar (RLS: yalnız admin). Yeni settings sistemi YOK.
+export const setAppSetting = (key, value) =>
+  supabase.from("app_settings").upsert({ key, value }, { onConflict: "key" });
+export const getForumThreadYonetim = async (ara = null) => {
+  const { data } = await supabase.rpc("forum_thread_yonetim", { p_ara: ara });
+  return data ?? [];
+};
+export const forumPostRaporKapat = (postId, status) =>
+  supabase.rpc("forum_post_rapor_kapat", { p_post: postId, p_status: status });
+
+// Kullanıcının takip ettiği thread id'leri (drawer "Takip Edilen" sekmesi filtresi)
+export async function forumTakipIdleri(userId) {
+  if (!userId) return [];
+  const { data } = await supabase.from("forum_thread_follows").select("thread_id").eq("user_id", userId);
+  return (data ?? []).map((r) => r.thread_id);
+}

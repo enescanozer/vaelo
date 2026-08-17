@@ -413,6 +413,11 @@ verify_jwt = true
 # Takma ad: biçim + Fly /text blocklist proxy'si + tekillik. Secret'lar (opsiyonel):
 # COMPUTE_SERVICE_URL, COMPUTE_SERVICE_TOKEN (moderate-tier1 ile aynı).
 
+[functions.forum-post]
+verify_jwt = true
+# Forum yazma (thread/reply/edit): mute/ban gate + /text moderasyon (context=forum) + insert.
+# Secret'lar (opsiyonel, aynı): COMPUTE_SERVICE_URL, COMPUTE_SERVICE_TOKEN.
+
 [functions.add-caption]
 verify_jwt = true
 

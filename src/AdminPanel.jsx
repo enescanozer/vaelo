@@ -12,6 +12,17 @@ import {
   moderasyonKarar,
   getPlatformMode,
   setPlatformMode,
+  getForumRaporKuyrugu,
+  forumPostKaldir,
+  forumPostRaporKapat,
+  getForumThreadYonetim,
+  forumThreadKaldir,
+  forumThreadKilitle,
+  forumKullaniciAra,
+  forumYaptirimUygula,
+  forumYaptirimGecmisi,
+  getBagisAyarlari,
+  setAppSetting,
 } from "./catalog";
 import { useLang } from "./i18n";
 import { t } from "./theme";
@@ -210,11 +221,17 @@ export default function AdminPanel({ admin }) {
       {/* Moderasyon kuyruğu (MANUAL_REVIEW + Tier 2 bekleyen) — moderatör + admin görür */}
       <ModerasyonKuyrugu />
 
+      {/* Topluluk / Forum moderasyonu — moderatör + admin görür */}
+      <ForumRaporlar />
+      <ForumThreadYonetim />
+      <ForumKullaniciModerasyon />
+
       {/* Gelir/yarışma/rol/denetim yalnız admin (owner); moderatör yalnız inceleme kuyruğu */}
       {admin && (
         <>
           <PlatformModu />
           <PromoBannerlar />
+          <BagisAyarlari />
           <Basvurular />
           <Roller />
           <Sponsorlar />
@@ -807,6 +824,219 @@ function ReferansSayaci() {
     </div>
   );
 }
+
+// ————— Forum: rapor kuyruğu (moderatör + admin) —————
+function ForumRaporlar() {
+  const { s } = useLang();
+  const [liste, setListe] = useState(null);
+  const yenile = () => getForumRaporKuyrugu().then(setListe);
+  useEffect(() => { yenile(); }, []);
+
+  async function postKaldir(r) { await forumPostKaldir(r.post_id); yenile(); }
+  async function yoksay(r) { await forumPostRaporKapat(r.post_id, "dismissed"); yenile(); }
+  async function yaptirim(r, action) {
+    const gun = action === "mute" ? 3 : null; // mute varsayılan 3 gün; ban süresiz
+    const expires = gun ? new Date(Date.now() + gun * 864e5).toISOString() : null;
+    await forumYaptirimUygula(r.poster_id, action, `forum: ${r.thread_baslik}`, expires);
+    yenile();
+  }
+
+  return (
+    <div style={{ marginTop: 48 }}>
+      <div style={{ fontFamily: t.display, fontWeight: 700, fontSize: 18, marginBottom: 6 }}>{s.panel.forum.raporlar}</div>
+      <div style={{ color: t.dim, fontSize: 13, marginBottom: 16 }}>{s.panel.forum.raporlarAlt}</div>
+      {liste !== null && liste.length === 0 && <div style={{ color: t.dim, fontSize: 13 }}>{s.panel.forum.raporYok}</div>}
+      <div style={{ display: "grid", gap: 10 }}>
+        {(liste ?? []).map((r) => (
+          <div key={r.post_id} style={kartStil}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <span style={{ fontWeight: 600, fontSize: 13 }}>{r.thread_baslik}</span>
+              <span style={{ color: t.dim, fontSize: 12 }}>· {r.yazar}</span>
+              <span style={{ color: t.accent, fontSize: 12, fontWeight: 700 }}>⚑ {Number(r.rapor_sayisi)}</span>
+              <span style={{ color: t.dim, fontSize: 11 }}>{(r.gerekceler ?? []).map((g) => s.forum.raporNeden[g] ?? g).join(", ")}</span>
+            </div>
+            <div style={{ fontSize: 13, color: t.dim, marginTop: 6, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+              {r.post_status === "removed" ? `(${s.panel.forum.kaldirildi})` : r.icerik}
+            </div>
+            <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+              <button onClick={() => yoksay(r)} style={kucukBtn(t.dim)}>{s.panel.forum.yoksay}</button>
+              {r.post_status !== "removed" && <button onClick={() => postKaldir(r)} style={kucukBtn(t.danger)}>{s.panel.forum.postKaldir}</button>}
+              <button onClick={() => yaptirim(r, "warning")} style={kucukBtn(t.dim)}>{s.panel.forum.uyar}</button>
+              <button onClick={() => yaptirim(r, "mute")} style={kucukBtn(t.dim)}>{s.panel.forum.sustur}</button>
+              <button onClick={() => yaptirim(r, "ban")} style={kucukBtn(t.danger)}>{s.panel.forum.banla}</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ————— Forum: konu yönetimi (kilit/kaldır + arama) —————
+function ForumThreadYonetim() {
+  const { s } = useLang();
+  const [liste, setListe] = useState(null);
+  const [ara, setAra] = useState("");
+  const yenile = (q = null) => getForumThreadYonetim(q).then(setListe);
+  useEffect(() => { yenile(); }, []);
+
+  async function kilit(th) { await forumThreadKilitle(th.id, !th.locked); yenile(ara || null); }
+  async function kaldir(th) { await forumThreadKaldir(th.id); yenile(ara || null); }
+
+  return (
+    <div style={{ marginTop: 48 }}>
+      <div style={{ fontFamily: t.display, fontWeight: 700, fontSize: 18, marginBottom: 6 }}>{s.panel.forum.konular}</div>
+      <form onSubmit={(e) => { e.preventDefault(); yenile(ara.trim() || null); }} style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <input style={{ ...girisStil, flex: 1 }} placeholder={s.panel.forum.ara} value={ara} onChange={(e) => setAra(e.target.value)} />
+        <button type="submit" style={kucukBtn(t.text)}>{s.panel.forum.araBtn}</button>
+      </form>
+      <div style={{ display: "grid", gap: 8 }}>
+        {(liste ?? []).map((th) => (
+          <div key={th.id} style={{ ...kartStil, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ fontWeight: 600, fontSize: 13, flex: 1, minWidth: 0 }}>
+              {th.locked && "🔒 "}{th.status === "removed" && "🚫 "}{th.baslik}
+            </span>
+            <span style={{ color: t.dim, fontSize: 12 }}>{th.title_ad} · {th.yazar} · {Number(th.mesaj_sayisi)}</span>
+            <button onClick={() => kilit(th)} style={kucukBtn(t.dim)}>{th.locked ? s.panel.forum.kilitAc : s.panel.forum.kilitle}</button>
+            {th.status !== "removed" && <button onClick={() => kaldir(th)} style={kucukBtn(t.danger)}>{s.panel.forum.kaldir}</button>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ————— Forum: kullanıcı moderasyonu (ara → yaptırım + geçmiş) —————
+function ForumKullaniciModerasyon() {
+  const { s } = useLang();
+  const [q, setQ] = useState("");
+  const [sonuc, setSonuc] = useState([]);
+  const [secili, setSecili] = useState(null);
+  const [gecmis, setGecmis] = useState([]);
+  const [action, setAction] = useState("mute");
+  const [gun, setGun] = useState("3");
+  const [neden, setNeden] = useState("");
+
+  async function ara(e) { e.preventDefault(); setSonuc(await forumKullaniciAra(q.trim())); }
+  async function sec(u) { setSecili(u); setGecmis(await forumYaptirimGecmisi(u.id)); }
+  async function uygula() {
+    const kalici = action === "ban" && gun === "0";
+    const expires = action === "warning" || kalici ? null : new Date(Date.now() + (Number(gun) || 1) * 864e5).toISOString();
+    await forumYaptirimUygula(secili.id, action, neden || null, expires);
+    setNeden("");
+    setGecmis(await forumYaptirimGecmisi(secili.id));
+  }
+
+  return (
+    <div style={{ marginTop: 48 }}>
+      <div style={{ fontFamily: t.display, fontWeight: 700, fontSize: 18, marginBottom: 6 }}>{s.panel.forum.kullanici}</div>
+      <form onSubmit={ara} style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <input style={{ ...girisStil, flex: 1 }} placeholder={s.panel.forum.kullaniciAra} value={q} onChange={(e) => setQ(e.target.value)} />
+        <button type="submit" style={kucukBtn(t.text)}>{s.panel.forum.araBtn}</button>
+      </form>
+      <div style={{ display: "grid", gap: 6, marginBottom: 12 }}>
+        {sonuc.map((u) => (
+          <button key={u.id} onClick={() => sec(u)} style={{ ...kartStil, textAlign: "left", cursor: "pointer", display: "flex", gap: 10, alignItems: "center" }}>
+            <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>{u.display_name}</span>
+            <span style={{ color: t.dim, fontSize: 12 }}>{u.role}</span>
+            {u.aktif_yaptirim && <span style={{ color: t.danger, fontSize: 12 }}>{u.aktif_yaptirim}</span>}
+          </button>
+        ))}
+      </div>
+      {secili && (
+        <div style={{ ...kartStil }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10 }}>{secili.display_name}</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
+            <select style={girisStil} value={action} onChange={(e) => setAction(e.target.value)}>
+              <option value="warning">{s.panel.forum.uyar}</option>
+              <option value="mute">{s.panel.forum.sustur}</option>
+              <option value="ban">{s.panel.forum.banla}</option>
+            </select>
+            {action !== "warning" && (
+              <select style={girisStil} value={gun} onChange={(e) => setGun(e.target.value)}>
+                <option value="1">1 {s.panel.forum.gun}</option>
+                <option value="3">3 {s.panel.forum.gun}</option>
+                <option value="7">7 {s.panel.forum.gun}</option>
+                <option value="30">30 {s.panel.forum.gun}</option>
+                {action === "ban" && <option value="0">{s.panel.forum.kalici}</option>}
+              </select>
+            )}
+            <input style={{ ...girisStil, flex: 1, minWidth: 140 }} placeholder={s.panel.forum.neden} value={neden} onChange={(e) => setNeden(e.target.value)} />
+            <button onClick={uygula} style={kucukBtn(t.text)}>{s.panel.forum.uygula}</button>
+          </div>
+          <div style={{ color: t.dim, fontSize: 12, marginBottom: 6 }}>{s.panel.forum.gecmis}</div>
+          <div style={{ display: "grid", gap: 4 }}>
+            {gecmis.map((g) => (
+              <div key={g.id} style={{ fontSize: 12, color: t.dim }}>
+                {new Date(g.created_at).toLocaleDateString(s.locale)} · {g.action}
+                {g.expires_at ? ` (→ ${new Date(g.expires_at).toLocaleDateString(s.locale)})` : ` (${s.panel.forum.kalici})`}
+                {g.uygulayan ? ` · ${g.uygulayan}` : ""}{g.reason ? ` · ${g.reason}` : ""}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ————— Bağış / Creator Support ayarları (YALNIZ admin; parametrik feature flag) —————
+function BagisAyarlari() {
+  const { s } = useLang();
+  const [a, setA] = useState(null);
+  const [kaydedildi, setKaydedildi] = useState(false);
+  useEffect(() => {
+    getBagisAyarlari().then((d) =>
+      setA(d ? { enabled: d.enabled, min: d.min_amount, max: d.max_amount, currency: d.currency, provider: d.provider } : null)
+    );
+  }, []);
+  if (!a) return null;
+
+  async function kaydet() {
+    await Promise.all([
+      setAppSetting("creator_donations_enabled", a.enabled ? "true" : "false"),
+      setAppSetting("creator_donations_min_amount", String(a.min)),
+      setAppSetting("creator_donations_max_amount", String(a.max)),
+      setAppSetting("creator_donations_currency", a.currency || "USD"),
+      setAppSetting("creator_donations_provider", a.provider || ""),
+    ]);
+    setKaydedildi(true);
+    setTimeout(() => setKaydedildi(false), 2000);
+  }
+  const u = (k, v) => setA((x) => ({ ...x, [k]: v }));
+
+  return (
+    <div style={{ marginTop: 48 }}>
+      <div style={{ fontFamily: t.display, fontWeight: 700, fontSize: 18, marginBottom: 6 }}>{s.panel.bagis.baslik}</div>
+      <div style={{ color: t.dim, fontSize: 13, marginBottom: 16 }}>{s.panel.bagis.aciklama}</div>
+      <div style={{ display: "grid", gap: 10, maxWidth: 420 }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14 }}>
+          <input type="checkbox" checked={a.enabled} onChange={(e) => u("enabled", e.target.checked)} />
+          {s.panel.bagis.aktif}
+        </label>
+        <Etiketli etiket={s.panel.bagis.min}><input type="number" style={girisStil} value={a.min} onChange={(e) => u("min", e.target.value)} /></Etiketli>
+        <Etiketli etiket={s.panel.bagis.max}><input type="number" style={girisStil} value={a.max} onChange={(e) => u("max", e.target.value)} /></Etiketli>
+        <Etiketli etiket={s.panel.bagis.para}><input style={girisStil} value={a.currency} onChange={(e) => u("currency", e.target.value)} /></Etiketli>
+        <Etiketli etiket={s.panel.bagis.saglayici}><input style={girisStil} value={a.provider} placeholder="none" onChange={(e) => u("provider", e.target.value)} /></Etiketli>
+        <div style={{ color: t.dim, fontSize: 12 }}>{s.panel.bagis.not}</div>
+        <button onClick={kaydet} style={{ background: t.gradient, color: "#0A0A0B", border: "none", borderRadius: 8, padding: "10px 18px", fontSize: 14, fontWeight: 700, justifySelf: "start" }}>
+          {kaydedildi ? s.panel.bagis.kaydedildi : s.panel.bagis.kaydet}
+        </button>
+      </div>
+    </div>
+  );
+}
+function Etiketli({ etiket, children }) {
+  return (
+    <label style={{ display: "grid", gap: 4 }}>
+      <span style={{ color: t.dim, fontSize: 12 }}>{etiket}</span>
+      {children}
+    </label>
+  );
+}
+const kartStil = { background: t.surface, border: `1px solid ${t.line}`, borderRadius: 8, padding: "12px 14px" };
+const girisStil = { padding: "8px 10px", background: t.surface2, border: `1px solid ${t.line}`, borderRadius: 6, color: t.text, fontSize: 13, outline: "none" };
+const kucukBtn = (renk) => ({ background: "none", border: `1px solid ${t.line}`, borderRadius: 6, color: renk, padding: "6px 10px", fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" });
 
 // ————— Sponsor yönetimi (pre-roll kartları) —————
 function Sponsorlar() {
