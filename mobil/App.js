@@ -872,11 +872,12 @@ function MobilFestivalKart({ baslik, alt, cta, vurgulu, bas }) {
     </View>
   );
 }
-function MobilFestival({ d, banner, git, tabloAc, ayarlarAc, user, girisAc, buHafta = [], ac }) {
+function MobilFestival({ d, banner, git, tabloAc, ayarlarAc, user, girisAc, buHafta = [], ac, arama, setArama, aramaRef, sonuclar }) {
   const f = d.festival;
   const link = banner?.link_url && /^https?:\/\//i.test(banner.link_url) ? banner.link_url : null;
+  const aramaAktif = sonuclar !== null; // ≥2 karakter → arama sonuçları (festival landing yerine)
   return (
-    <ScrollView style={s.kap} contentContainerStyle={{ paddingBottom: 120 }}>
+    <ScrollView style={s.kap} contentContainerStyle={{ paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
       {/* Header (ana ekranla tutarlı) */}
       <View style={s.ustSatir}>
         <ExpoImage
@@ -898,38 +899,64 @@ function MobilFestival({ d, banner, git, tabloAc, ayarlarAc, user, girisAc, buHa
         </View>
       </View>
 
-      <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
-        {banner && (
-          <TouchableOpacity
-            disabled={!link}
-            onPress={() => link && Linking.openURL(link)}
-            activeOpacity={link ? 0.85 : 1}
-            style={{ borderWidth: 1, borderColor: t.line, borderRadius: 14, overflow: "hidden", marginBottom: 20, backgroundColor: t.surface }}
-          >
-            {banner.image_url ? (
-              <ExpoImage source={{ uri: banner.image_url }} style={{ width: "100%", height: 150 }} contentFit="cover" />
-            ) : null}
-            <View style={{ padding: 14 }}>
-              <Text style={{ color: t.text, fontSize: 16, fontWeight: "700" }}>{banner.title}</Text>
-              {banner.body ? <Text style={{ color: t.dim, fontSize: 13, marginTop: 4 }}>{banner.body}</Text> : null}
-            </View>
-          </TouchableOpacity>
-        )}
-        <Text style={{ color: t.text, fontSize: 26, fontWeight: "800", lineHeight: 30 }}>{f.baslik}</Text>
-        <Text style={{ color: t.dim, fontSize: 15, marginTop: 10, lineHeight: 21 }}>{f.alt}</Text>
-        <MobilFestivalKart baslik={f.filmBaslik} alt={f.filmAlt} cta={f.filmCta} vurgulu bas={() => git("film")} />
-        <MobilFestivalKart baslik={f.artBaslik} alt={f.artAlt} cta={f.artCta} bas={() => git("art")} />
-      </View>
+      {/* Arama — festival modunda da çalışır (önceden yalnız netflix modunda vardı). Kutu koşuldan
+          ÖNCE sabit render edilir → 2-karakter eşiğini geçerken TextInput remount olmaz, focus/klavye korunur. */}
+      {setArama && (
+        <TextInput
+          ref={aramaRef}
+          style={s.arama}
+          placeholder={d.ara}
+          placeholderTextColor={t.dim}
+          value={arama}
+          onChangeText={setArama}
+        />
+      )}
 
-      {/* "Bu Hafta Yeni" — festival penceresinde de taze bölümler (kullanıcı isteği) */}
-      {buHafta.length > 0 && ac && (
-        <View style={{ marginTop: 28 }}>
-          <YatayRaf
-            d={d}
-            ad={d.buHaftaYeni}
-            ogeler={buHafta.map((b) => ({ baslik: b, bas: () => ac(b.id) }))}
-          />
+      {aramaAktif ? (
+        // Arama sonuçları — netflix moduyla aynı SonucSatiri; festival landing gizlenir
+        <View style={{ paddingHorizontal: 16, paddingTop: 4 }}>
+          <Text style={s.rafBaslik}>{d.sonuclar}</Text>
+          {sonuclar.length === 0 && <Text style={s.dim}>{d.sonucYok}</Text>}
+          {sonuclar.map((b) => (
+            <SonucSatiri key={String(b.id)} d={d} baslik={b} ac={ac} />
+          ))}
         </View>
+      ) : (
+        <>
+          <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+            {banner && (
+              <TouchableOpacity
+                disabled={!link}
+                onPress={() => link && Linking.openURL(link)}
+                activeOpacity={link ? 0.85 : 1}
+                style={{ borderWidth: 1, borderColor: t.line, borderRadius: 14, overflow: "hidden", marginBottom: 20, backgroundColor: t.surface }}
+              >
+                {banner.image_url ? (
+                  <ExpoImage source={{ uri: banner.image_url }} style={{ width: "100%", height: 150 }} contentFit="cover" />
+                ) : null}
+                <View style={{ padding: 14 }}>
+                  <Text style={{ color: t.text, fontSize: 16, fontWeight: "700" }}>{banner.title}</Text>
+                  {banner.body ? <Text style={{ color: t.dim, fontSize: 13, marginTop: 4 }}>{banner.body}</Text> : null}
+                </View>
+              </TouchableOpacity>
+            )}
+            <Text style={{ color: t.text, fontSize: 26, fontWeight: "800", lineHeight: 30 }}>{f.baslik}</Text>
+            <Text style={{ color: t.dim, fontSize: 15, marginTop: 10, lineHeight: 21 }}>{f.alt}</Text>
+            <MobilFestivalKart baslik={f.filmBaslik} alt={f.filmAlt} cta={f.filmCta} vurgulu bas={() => git("film")} />
+            <MobilFestivalKart baslik={f.artBaslik} alt={f.artAlt} cta={f.artCta} bas={() => git("art")} />
+          </View>
+
+          {/* "Bu Hafta Yeni" — festival penceresinde de taze bölümler (kullanıcı isteği) */}
+          {buHafta.length > 0 && ac && (
+            <View style={{ marginTop: 28 }}>
+              <YatayRaf
+                d={d}
+                ad={d.buHaftaYeni}
+                ogeler={buHafta.map((b) => ({ baslik: b, bas: () => ac(b.id) }))}
+              />
+            </View>
+          )}
+        </>
       )}
     </ScrollView>
   );
@@ -1024,6 +1051,10 @@ function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac, aramaOdak, festi
         girisAc={girisAc}
         buHafta={buHafta}
         ac={ac}
+        arama={arama}
+        setArama={setArama}
+        aramaRef={aramaRef}
+        sonuclar={sonuclar}
       />
     );
   }

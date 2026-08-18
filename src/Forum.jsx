@@ -103,8 +103,8 @@ export default function ForumDrawer({ titleId, episodeId = null, baslikAd, bolum
     if (el) el.scrollTop = el.scrollHeight;
   }, [mesajlar]);
 
-  const ust = episodeId ? s.forum.bolumBaslik : s.forum.baslik;
-  const context = episodeId ? bolumAd || baslikAd : baslikAd;
+  // Başlık HER ZAMAN sadece "Topluluk" (s.forum.baslik). Bölüm etiketi / alt satır gösterilmez.
+  const ust = s.forum.baslik;
 
   return (
     <div style={arkaPlan(mobil)} onClick={kapat}>
@@ -122,7 +122,6 @@ export default function ForumDrawer({ titleId, episodeId = null, baslikAd, bolum
           <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontFamily: t.display, fontWeight: 800, fontSize: 17 }}>{ust}</div>
-              {context && <div style={{ color: t.dim, fontSize: 12, marginTop: 2 }}>{context}</div>}
             </div>
             <button onClick={kapat} aria-label={s.forum.kapat} style={{ background: "none", border: "none", color: t.dim, fontSize: 20, lineHeight: 1, cursor: "pointer", padding: 4 }}>✕</button>
           </div>

@@ -418,6 +418,17 @@ verify_jwt = true
 # Forum yazma (thread/reply/edit): mute/ban gate + /text moderasyon (context=forum) + insert.
 # Secret'lar (opsiyonel, aynı): COMPUTE_SERVICE_URL, COMPUTE_SERVICE_TOKEN.
 
+[functions.video-delete]
+verify_jwt = true
+# "DELETE /api/v1/videos/{id}" adaptörü: kullanıcı JWT'siyle video_sil RPC (RBAC + soft delete +
+# audit) çağırır, SQLSTATE→HTTP (404/403/400) eşler. Storage BURADA silinmez (purge-videos temizler).
+
+[functions.purge-videos]
+verify_jwt = true
+# ZAMANLANMIŞ storage temizliği: saklama süresi (30 gün) dolan soft-deleted videoların CF Stream
+# assetlerini kalıcı siler + purged_at damgalar. Secret'lar: CF_ACCOUNT_ID, CF_API_TOKEN.
+# Zamanlama: Dashboard → Edge Functions → purge-videos → Schedule, önerilen: 0 * * * *  (saatlik)
+
 [functions.add-caption]
 verify_jwt = true
 
