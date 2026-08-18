@@ -23,6 +23,7 @@ import {
   puanVer,
   getUreticiProfil,
   sosyalUrl,
+  sohbetSayim,
 } from "./catalog";
 import { useLang } from "./i18n";
 import { useAyarlar } from "./ayarlar";
@@ -103,7 +104,7 @@ export default function Viewer({ user, istenen, anaSinyal, festivalGit, girisAc 
         oynat={oynat}
         girisAc={girisAc}
         forumAc={forumAc}
-        geri={() => setGorunum({ tip: "detay", id: gorunum.baslik.id })}
+        geri={() => setGorunum({ tip: "ana" })}
       />
     );
   } else if (gorunum.tip === "detay") {
@@ -752,19 +753,16 @@ function Detay({ id, user, oynat, forumAc, geri }) {
     getTitle(id)
       .then((b) => {
         if (!aktif) return;
-        setBaslik(b);
-        // Üretici kartını (ad + sosyal) getir — yalnız yayınlanmış başlığın üreticisi
-        setUretici(null);
-        if (b?.creator_id) getUreticiProfil(b.creator_id).then((u) => aktif && setUretici(u));
+        // Issue 1: hero banner + ikinci tık KALDIRILDI — başlık yüklenince DOĞRUDAN oynatıcı.
+        const ilk = b?.videos?.[0];
+        if (ilk) oynat(ilk, b); // → { tip: "oynat" } (Viewer view state)
+        else setHata("no-playable");
       })
       .catch((e) => aktif && setHata(e.message));
-    if (user) {
-      inMyList(user.id, id).then((e) => aktif && setEkli(e));
-    }
     return () => {
       aktif = false;
     };
-  }, [id, user?.id]);
+  }, [id]);
 
   // Sekme başlığını içerikle eşle (paylaşılan sekmelerde ad görünsün)
   useEffect(() => {
@@ -782,8 +780,12 @@ function Detay({ id, user, oynat, forumAc, geri }) {
   }
 
   if (hata) return <Durum mesaj={s.kesfet.baslikHata(hata)} geri={geri} />;
-  if (!baslik) return <Durum mesaj={s.genel.yukleniyor} geri={geri} />;
+  // Detay artık YÜKLEYİCİ: efekt oynat()'ı çağırana (ya da video yoksa hata) kadar yalnız spinner.
+  // Eski hero render'ı (aşağıda) artık ULAŞILMAZ — minify DCE ile bundle'dan düşer; Image 4
+  // düzeni Oynatici'de. (Issue 1 + Issue 2)
+  return <Durum mesaj={s.genel.yukleniyor} geri={geri} />;
 
+  // eslint-disable-next-line no-unreachable
   const dizi = baslik.kind === "dizi";
   const backdrop = baslik.videos[0]?.cf_uid ? thumbUrl(baslik.videos[0].cf_uid) : null;
 
@@ -1146,6 +1148,51 @@ function Oynatici({ video, baslik, baslangic = 0, user, oynat, geri, girisAc, fo
     };
   }, [baslik?.creator_id]);
 
+  // Üretici satırı aksiyonları (Image 4): Listem (kalp) + Paylaş + ⋯ menü
+  const [ekli, setEkli] = useState(null); // null: bilinmiyor
+  const [kopyalandi, setKopyalandi] = useState(false);
+  const [menuAcik, setMenuAcik] = useState(false);
+  const gen = usePencereGen();
+  const dar = gen < 480; // Paylaş etiketi mobilde ikon-only olur
+  useEffect(() => {
+    let aktif = true;
+    setEkli(null);
+    if (user) inMyList(user.id, baslik.id).then((e) => aktif && setEkli(e));
+    return () => { aktif = false; };
+  }, [user?.id, baslik.id]);
+
+  // Topluluk mesaj sayısı (canlı, sohbet_mesajlari'ndan; bölüm odası ep:<video_id>)
+  const [sohbetSayi, setSohbetSayi] = useState(null);
+  useEffect(() => {
+    let aktif = true;
+    setSohbetSayi(null);
+    sohbetSayim(`ep:${video.id}`).then((n) => aktif && setSohbetSayi(n)).catch(() => aktif && setSohbetSayi(0));
+    return () => { aktif = false; };
+  }, [video.id]);
+
+  // Sekme başlığını içerikle eşle (paylaşılan sekmelerde ad görünsün) — eski Detay'dan taşındı
+  useEffect(() => {
+    document.title = `${baslik.name} — Vaelo`;
+    return () => { document.title = s.belgeBasligi; };
+  }, [baslik.name, s]);
+
+  async function listemDegistir() {
+    if (!user) return girisAc();
+    if (ekli === null) return;
+    setEkli(!ekli); // iyimser
+    await toggleMyList(user.id, baslik.id, ekli);
+  }
+  async function paylas() {
+    const url = `${window.location.origin}${window.location.pathname}?b=${baslik.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setKopyalandi(true);
+      setTimeout(() => setKopyalandi(false), 2000);
+    } catch {
+      /* pano erişimi reddedilirse sessizce geç */
+    }
+  }
+
   // Pre-roll: aktif sponsor varsa 5 sn'lik kart, yoksa doğrudan video
   useEffect(() => {
     let aktif = true;
@@ -1263,26 +1310,18 @@ function Oynatici({ video, baslik, baslangic = 0, user, oynat, geri, girisAc, fo
   }
 
   return (
-    <div style={{ maxWidth: 1080, margin: "0 auto", padding: `32px ${t.pad} 64px` }}>
-      <GeriButon geri={geri} />
-      <div style={{ margin: "24px 0 16px" }}>
-        <span style={{ fontFamily: t.display, fontWeight: 700, fontSize: 22 }}>
-          {baslik.name}
-        </span>
-        {baslik.kind === "dizi" && (
-          <span style={{ color: t.dim, fontSize: 15, marginLeft: 12 }}>
-            {s.genel.seb(video.season ?? 1, video.episode ?? 1)}
-            {video.name ? ` — ${video.name}` : ""}
-          </span>
-        )}
+    <div style={{ maxWidth: 1080, margin: "0 auto", padding: `16px ${t.pad} 64px` }}>
+      <div style={{ marginBottom: 14 }}>
+        <GeriButon geri={geri} />
       </div>
 
+      {/* PLAYER (Image 4: sayfanın en üstü, tam genişlik, 16:9). iframe/SDK mantığı DEĞİŞMEDİ. */}
       <div
         style={{
           position: "relative",
           paddingTop: "56.25%",
           background: "#000",
-          borderRadius: 10,
+          borderRadius: 12,
           overflow: "hidden",
         }}
       >
@@ -1402,46 +1441,176 @@ function Oynatici({ video, baslik, baslangic = 0, user, oynat, geri, girisAc, fo
         )}
       </div>
 
-      {/* Video altı metadata: başlık + açıklama + üretici kartı. Player'a DOKUNMAZ —
-          yalnız iframe'in ALTINA sibling UI; uretici state'i iframe render'ını etkilemez. */}
-      <div style={{ padding: `24px ${t.pad} 0`, maxWidth: 760 }}>
-        <div style={{ fontFamily: t.display, fontWeight: 800, fontSize: 24, lineHeight: 1.15 }}>
+      {/* Image 4 düzeni: başlık → üretici satırı (aksiyonlar) → çizgi → iki sütun → metadata */}
+      <div style={{ marginTop: 24 }}>
+        {/* Başlık */}
+        <div style={{ fontFamily: t.display, fontWeight: 800, fontSize: "clamp(24px, 4vw, 34px)", lineHeight: 1.12 }}>
           {baslik.name}
           {baslik.kind === "dizi" && (
-            <span style={{ color: t.dim, fontWeight: 400, fontSize: 15 }}>
+            <span style={{ color: t.dim, fontWeight: 400, fontSize: 16 }}>
               {"  "}
               {s.genel.seb(video.season ?? 1, video.episode ?? 1)}
             </span>
           )}
         </div>
 
-        {/* Açıklama (üstte) → Üretici kartı (altında, SÜREKLİ AÇIK) */}
-        <div style={{ marginTop: 14 }}>
-          <Aciklama metin={baslik.description} />
+        {baslik.kurucu_icerigi && (
+          <div style={{ marginTop: 12 }}>
+            <span style={{ display: "inline-block", padding: "5px 12px", borderRadius: 999, background: t.gradient, color: "#0A0A0B", fontSize: 12, fontWeight: 800, letterSpacing: 0.3 }}>
+              {s.kesfet.kurucuEkip}
+            </span>
+          </div>
+        )}
+
+        {/* Üretici satırı: avatar + ad (sol) | kalp + Paylaş + ⋯ (sağ) */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginTop: 18, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+            <Avatar ad={uretici?.display_name || baslik.name} boyut={44} />
+            <div style={{ fontWeight: 700, fontSize: 15, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {uretici?.display_name || s.kesfet.uretici}
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <button
+              onClick={listemDegistir}
+              aria-label={s.kesfet.listemeEkle}
+              title={ekli ? s.kesfet.listemde : s.kesfet.listemeEkle}
+              style={{ ...yuvarlakBtn, color: ekli ? t.accent : t.text, borderColor: ekli ? t.accent : t.line }}
+            >
+              {ekli ? "♥" : "♡"}
+            </button>
+            <button
+              onClick={paylas}
+              title={s.kesfet.paylas}
+              style={{ ...yuvarlakBtn, width: dar ? 42 : "auto", padding: dar ? 0 : "0 16px", gap: 8 }}
+            >
+              <span style={{ fontSize: 15 }}>↗</span>
+              {!dar && <span style={{ fontSize: 14, whiteSpace: "nowrap" }}>{kopyalandi ? s.kesfet.kopyalandi : s.kesfet.paylas}</span>}
+            </button>
+            <div style={{ position: "relative" }}>
+              <button onClick={() => setMenuAcik((v) => !v)} aria-label="⋯" style={yuvarlakBtn}>⋯</button>
+              {menuAcik && (
+                <div onMouseLeave={() => setMenuAcik(false)} style={{ position: "absolute", right: 0, top: 48, background: t.surface2, border: `1px solid ${t.line}`, borderRadius: 10, minWidth: 180, zIndex: 5, overflow: "hidden", display: "grid" }}>
+                  <button style={menuOge2} onClick={() => { setMenuAcik(false); paylas(); }}>{s.kesfet.paylas}</button>
+                  {[["instagram", "Instagram"], ["tiktok", "TikTok"], ["youtube", "YouTube"], ["twitter", "X"], ["website", s.kesfet.website]].map(([p, et]) => {
+                    const url = uretici && sosyalUrl(p, uretici[p]);
+                    if (!url) return null;
+                    return (
+                      <a key={p} href={url} target="_blank" rel="noopener noreferrer" style={{ ...menuOge2, textDecoration: "none" }}>
+                        {et} ↗
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-        <UreticiKarti uretici={uretici} />
+
+        <hr style={{ border: "none", borderTop: `1px solid ${t.line}`, margin: "20px 0" }} />
+
+        {/* İki sütun: Açıklama (sol) | Puan + Topluluk (sağ). Dar ekranda alt alta yığılır (flexWrap). */}
+        <div style={{ display: "flex", gap: 40, flexWrap: "wrap", alignItems: "flex-start" }}>
+          <div style={{ flex: "1 1 340px", minWidth: 0 }}>
+            <div style={{ fontFamily: t.display, fontWeight: 700, fontSize: 18, marginBottom: 12 }}>{s.oynatici.aciklama}</div>
+            {baslik.description ? (
+              <div style={{ color: t.dim, fontSize: 15, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{baslik.description}</div>
+            ) : (
+              <div style={{ color: t.dim, fontSize: 14 }}>—</div>
+            )}
+            <MetaSatir video={video} baslik={baslik} />
+          </div>
+          <div style={{ flex: "1 1 260px", minWidth: 0, maxWidth: 360 }}>
+            <PuanKontrol video={video} user={user} girisAc={girisAc}>
+              {forumAc && (
+                <button
+                  onClick={() => forumAc(baslik.id, video.id, baslik.name, video.name || s.genel.bolumNo(video.episode ?? 1))}
+                  style={{ width: "100%", background: "none", border: `1px solid ${t.accent}`, borderRadius: 999, color: t.accent, padding: "12px 20px", fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, cursor: "pointer" }}
+                >
+                  💬 {baslik.kind === "dizi" ? s.forum.bolumBaslik : s.forum.baslik}
+                  {sohbetSayi != null ? ` (${sohbetSayi})` : ""}
+                </button>
+              )}
+            </PuanKontrol>
+          </div>
+        </div>
+
+        {/* Dizi bölüm listesi (aktif bölüm vurgulu) */}
+        {baslik.kind === "dizi" && baslik.videos.length > 1 && (
+          <div style={{ marginTop: 36, display: "grid", gap: 10 }}>
+            {baslik.videos.map((v) => (
+              <div
+                key={v.id}
+                onClick={() => oynat(v, baslik)}
+                style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 18px", background: v.id === video.id ? t.surface2 : t.surface, border: `1px solid ${v.id === video.id ? t.accent : t.line}`, borderRadius: 10, cursor: "pointer" }}
+              >
+                <span style={{ color: t.dim, fontSize: 13, width: 56, flexShrink: 0 }}>{s.genel.seb(v.season ?? 1, v.episode ?? 1)}</span>
+                <span style={{ fontSize: 15, fontWeight: 600, flex: 1, minWidth: 0 }}>{v.name || s.genel.bolumNo(v.episode ?? 1)}</span>
+                <button onClick={(e) => { e.stopPropagation(); forumAc(baslik.id, v.id, baslik.name, v.name || s.genel.bolumNo(v.episode ?? 1)); }} title={s.forum.bolumBaslik} style={{ background: "none", border: "none", color: t.dim, fontSize: 15, cursor: "pointer", padding: "0 4px" }}>💬</button>
+                <span style={{ color: t.dim, fontSize: 13 }}>▶</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Yapım Süreci (BTS) */}
+        {baslik.yapimlar?.length > 0 && (
+          <div style={{ marginTop: 32 }}>
+            <div style={{ fontFamily: t.display, fontWeight: 700, fontSize: 18, marginBottom: 12 }}>{s.kesfet.yapimSureci}</div>
+            <div style={{ display: "grid", gap: 10 }}>
+              {baslik.yapimlar.map((v) => (
+                <div key={v.id} onClick={() => oynat(v, baslik)} style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 18px", background: t.surface, border: `1px solid ${t.line}`, borderRadius: 8, cursor: "pointer" }}>
+                  <span style={{ fontSize: 15, width: 56, flexShrink: 0, textAlign: "center" }}>🎬</span>
+                  <span style={{ fontSize: 15, fontWeight: 600, flex: 1, minWidth: 0 }}>{v.name || s.kesfet.yapimSureci}</span>
+                  <span style={{ color: t.dim, fontSize: 13 }}>▶</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
-
-      {/* İzlenen videonun 1–10 halk oylaması (player'ın hemen altında) */}
-      <PuanKontrol video={video} user={user} girisAc={girisAc} />
-
-      {/* Topluluk: forum drawer'ı açar. Overlay olduğu için oynatıcı ETKİLENMEZ (video durmaz). */}
-      {forumAc && (
-        <div style={{ padding: `0 ${t.pad} 40px` }}>
-          <button
-            onClick={() => forumAc(baslik.id, video.id, baslik.name, video.name || s.genel.bolumNo(video.episode ?? 1))}
-            style={{ background: "none", border: `1px solid ${t.accent}`, borderRadius: 999, color: t.accent, padding: "10px 20px", fontSize: 14, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}
-          >
-            💬 {baslik.kind === "dizi" ? s.forum.bolumBaslik : s.forum.baslik}
-          </button>
-        </div>
-      )}
     </div>
   );
 }
 
+// Pencere genişliği (mobil kırılım için) — resize'e duyarlı.
+function usePencereGen() {
+  const [g, setG] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1280));
+  useEffect(() => {
+    const f = () => setG(window.innerWidth);
+    window.addEventListener("resize", f);
+    return () => window.removeEventListener("resize", f);
+  }, []);
+  return g;
+}
+
+// Metadata satırı (Image 4): süre · tarih · #tür — sol hizalı, sönük.
+function MetaSatir({ video, baslik }) {
+  const { s } = useLang();
+  const sn = Math.max(0, Math.round(Number(video.duration_seconds) || 0));
+  const tarih = video.published_at || video.created_at;
+  const ogeler = [];
+  if (sn > 0) ogeler.push(<span key="sure">🕐 {s.oynatici.sure(Math.floor(sn / 60), sn % 60)}</span>);
+  if (tarih) ogeler.push(<span key="tarih">📅 {new Date(tarih).toLocaleDateString(s.locale, { day: "numeric", month: "short", year: "numeric" })}</span>);
+  if (baslik.genre) ogeler.push(<span key="tur" style={{ padding: "3px 10px", borderRadius: 999, background: t.surface2, border: `1px solid ${t.line}`, color: t.text }}>#{baslik.genre}</span>);
+  if (ogeler.length === 0) return null;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", color: t.dim, fontSize: 13, marginTop: 20 }}>
+      {ogeler.map((o, i) => (
+        <span key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {i > 0 && <span style={{ opacity: 0.5 }}>·</span>}
+          {o}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+const yuvarlakBtn = { height: 42, minWidth: 42, background: "none", border: `1px solid ${t.line}`, borderRadius: 999, color: t.text, fontSize: 16, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box" };
+const menuOge2 = { background: "none", border: "none", color: t.text, textAlign: "left", padding: "10px 14px", fontSize: 13, cursor: "pointer", width: "100%" };
+
 // ————— Video halk oylaması (1–10) — aggregate göster + optimistik oy —————
-function PuanKontrol({ video, user, girisAc }) {
+function PuanKontrol({ video, user, girisAc, children }) {
   const { s } = useLang();
   const [ozet, setOzet] = useState({ ortalama: null, oySayisi: 0, benim: null });
 
@@ -1465,24 +1634,16 @@ function PuanKontrol({ video, user, girisAc }) {
 
   const p10 = s.kesfet.puanlama;
   return (
-    <div style={{ marginTop: 22 }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
-        <span style={{ fontFamily: t.display, fontWeight: 700, fontSize: 16 }}>{p10.baslik}</span>
-        {ozet.ortalama != null ? (
-          <span style={{ fontSize: 15 }}>
-            <b>{ozet.ortalama.toFixed(1)}</b>
-            <span style={{ color: t.dim }}> · {p10.oy(ozet.oySayisi)}</span>
-          </span>
-        ) : (
-          <span style={{ color: t.dim, fontSize: 14 }}>{p10.yok}</span>
-        )}
-        {ozet.benim != null && (
-          <span style={{ color: t.dim, fontSize: 13, marginLeft: "auto" }}>
-            {p10.senin}: {ozet.benim}
-          </span>
-        )}
+    <div>
+      {/* Puan ver  <ortalama> / 10  (Image 4: ortalama accent + büyük) */}
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+        <span style={{ fontFamily: t.display, fontWeight: 700, fontSize: 18 }}>{p10.baslik}</span>
+        <span style={{ fontSize: 15 }}>
+          <b style={{ color: t.accent, fontSize: 21 }}>{ozet.ortalama != null ? ozet.ortalama.toFixed(1) : "—"}</b>
+          <span style={{ color: t.dim }}> / 10</span>
+        </span>
       </div>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: children ? 18 : 0 }}>
         {Array.from({ length: 10 }, (_, i) => i + 1).map((p) => {
           const secili = ozet.benim === p;
           return (
@@ -1507,6 +1668,7 @@ function PuanKontrol({ video, user, girisAc }) {
           );
         })}
       </div>
+      {children}
     </div>
   );
 }

@@ -794,6 +794,17 @@ export async function sohbetOdaDurum(oda) {
   return !!data?.locked;
 }
 
+// Odadaki (görünür) mesaj sayısı — "Topluluk (N)" rozeti için (head count, satır çekmez).
+export async function sohbetSayim(oda) {
+  const { count } = await supabase
+    .from("sohbet_mesajlari")
+    .select("id", { count: "exact", head: true })
+    .eq("oda", oda)
+    .eq("status", "visible")
+    .is("deleted_at", null);
+  return count ?? 0;
+}
+
 // Mesaj gönder (moderasyon FAIL-CLOSED edge function'da). Dönüş: { ok, mesaj } | { hata, kod }
 export const sohbetGonder = (p) => forumYaz({ action: "sohbet", ...p });
 

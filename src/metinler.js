@@ -149,6 +149,8 @@ export const METINLER = {
       sonrakiBolum: (n) => `Next episode in ${n}s`,
       simdiOynat: "▶ Play now",
       kal: "Stay",
+      aciklama: "Description",
+      sure: (dk, sn) => `${dk} min ${sn} sec`,
     },
     giris: {
       girisBaslik: "Sign in",
@@ -602,6 +604,8 @@ export const METINLER = {
       sonrakiBolum: (n) => `Следующая серия через ${n} с`,
       simdiOynat: "▶ Смотреть сейчас",
       kal: "Остаться",
+      aciklama: "Описание",
+      sure: (dk, sn) => `${dk} мин ${sn} сек`,
     },
     giris: {
       girisBaslik: "Войти",
@@ -1055,6 +1059,8 @@ export const METINLER = {
       sonrakiBolum: (n) => `${n} 秒后播放下一集`,
       simdiOynat: "▶ 立即播放",
       kal: "留下",
+      aciklama: "简介",
+      sure: (dk, sn) => `${dk} 分 ${sn} 秒`,
     },
     giris: {
       girisBaslik: "登录",
@@ -1508,6 +1514,8 @@ export const METINLER = {
       sonrakiBolum: (n) => `الحلقة التالية خلال ${n} ثانية`,
       simdiOynat: "▶ التشغيل الآن",
       kal: "البقاء",
+      aciklama: "الوصف",
+      sure: (dk, sn) => `${dk} د ${sn} ث`,
     },
     giris: {
       girisBaslik: "تسجيل الدخول",
@@ -1961,6 +1969,8 @@ export const METINLER = {
       sonrakiBolum: (n) => `Sonraki bölüm ${n} sn içinde`,
       simdiOynat: "▶ Şimdi oynat",
       kal: "Kal",
+      aciklama: "Açıklama",
+      sure: (dk, sn) => `${dk} dk ${sn} sn`,
     },
     giris: {
       girisBaslik: "Giriş yap",
@@ -2413,6 +2423,8 @@ export const METINLER = {
       sonrakiBolum: (n) => `Siguiente episodio en ${n} s`,
       simdiOynat: "▶ Reproducir ahora",
       kal: "Quedarme",
+      aciklama: "Descripción",
+      sure: (dk, sn) => `${dk} min ${sn} s`,
     },
     giris: {
       girisBaslik: "Iniciar sesión",
@@ -2870,6 +2882,8 @@ export const METINLER = {
       sonrakiBolum: (n) => `Nächste Folge in ${n} s`,
       simdiOynat: "▶ Jetzt abspielen",
       kal: "Bleiben",
+      aciklama: "Beschreibung",
+      sure: (dk, sn) => `${dk} Min. ${sn} Sek.`,
     },
     giris: {
       girisBaslik: "Anmelden",
@@ -3329,6 +3343,8 @@ export const METINLER = {
       sonrakiBolum: (n) => `Épisode suivant dans ${n} s`,
       simdiOynat: "▶ Lire maintenant",
       kal: "Rester",
+      aciklama: "Description",
+      sure: (dk, sn) => `${dk} min ${sn} s`,
     },
     giris: {
       girisBaslik: "Se connecter",
