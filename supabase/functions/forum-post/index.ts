@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
     const content = String(g?.content ?? "").trim();
     const lang = typeof g?.lang === "string" ? g.lang : "en";
     const isSpoiler = !!g?.is_spoiler;
-    if (!["thread", "reply", "edit", "sohbet"].includes(action)) return yanit({ hata: "action", kod: "action" }, 400);
+    if (!["thread", "reply", "edit", "sohbet", "sohbet_duzenle"].includes(action)) return yanit({ hata: "action", kod: "action" }, 400);
     if (!content || content.length > MAX) return yanit({ hata: "bicim", kod: "bicim" }, 400);
 
     const servis = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -116,6 +116,20 @@ Deno.serve(async (req) => {
       if (error) { console.error(error.message); return yanit({ hata: "sunucu", kod: "sunucu" }, 500); }
       // sohbet_getir RPC şekliyle uyum: yeni mesajda beğeni 0 (optimistik + realtime tutarlı)
       return yanit({ ok: true, mesaj: { ...row, begeni_sayisi: 0, benim_begenim: false } });
+    }
+
+    // ————— Sohbet mesajını DÜZENLE (yalnız kendi; yeni metin yukarıda moderasyondan GEÇTİ) —————
+    if (action === "sohbet_duzenle") {
+      const mid = String(g?.id ?? "").trim();
+      if (!/^[0-9a-fA-F-]{36}$/.test(mid)) return yanit({ hata: "bicim", kod: "bicim" }, 400);
+      // Yalnız KENDİ, görünür, silinmemiş mesajın METNİ güncellenir (spoiler/reply/mention KORUNUR).
+      const { data: upd, error } = await servis.from("sohbet_mesajlari")
+        .update({ mesaj: content })
+        .eq("id", mid).eq("user_id", user.id).eq("status", "visible").is("deleted_at", null)
+        .select("id, oda, user_id, nickname, mesaj, is_spoiler, reply_to, reply_nickname, reply_ozet, mentions, created_at");
+      if (error) { console.error(error.message); return yanit({ hata: "sunucu", kod: "sunucu" }, 500); }
+      if (!upd || upd.length === 0) return yanit({ hata: "yetki", kod: "yetki" }, 403);
+      return yanit({ ok: true, mesaj: { ...upd[0], begeni_sayisi: 0, benim_begenim: true } });
     }
 
     if (action === "thread") {

@@ -800,6 +800,8 @@ export async function sohbetSayim(oda) {
 
 // Mesaj gönder (moderasyon FAIL-CLOSED edge function'da). Dönüş: { ok, mesaj } | { hata, kod }
 export const sohbetGonder = (p) => forumYaz({ action: "sohbet", ...p });
+// Mesajı düzenle (yalnız kendi; yeni metin moderasyondan geçer). { id, content, lang }
+export const sohbetDuzenle = (p) => forumYaz({ action: "sohbet_duzenle", ...p });
 
 // Realtime abonelik: yeni mesaj (INSERT) ve kaldırma/silme (UPDATE) olayları.
 export function sohbetAbone(oda, onInsert, onUpdate) {

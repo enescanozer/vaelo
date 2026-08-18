@@ -14,6 +14,8 @@ import {
   sohbetBegenKaldir,
   sohbetBegeniAbone,
   sohbetKullaniciAra,
+  sohbetMesajSil,
+  sohbetDuzenle,
 } from "./catalog";
 import { useLang } from "./i18n";
 import { t } from "./theme";
@@ -103,8 +105,13 @@ export default function ForumDrawer({ titleId, episodeId = null, baslikAd, bolum
       // Yeni mesaj: realtime payload'ında hesaplanan alanlar (beğeni) yok → 0/false varsayılan.
       (yeni) => aktif && ekle({ ...yeni, begeni_sayisi: yeni.begeni_sayisi ?? 0, benim_begenim: yeni.benim_begenim ?? false }),
       (guncel) => {
-        if (aktif && (guncel.status !== "visible" || guncel.deleted_at)) {
+        if (!aktif) return;
+        if (guncel.status !== "visible" || guncel.deleted_at) {
+          // Silme/kaldırma → listeden çıkar
           setMesajlar((eski) => (eski ?? []).filter((x) => x.id !== guncel.id));
+        } else {
+          // Düzenleme → metni yerinde güncelle (beğeni/reply/mention alanlarını KORU)
+          setMesajlar((eski) => (eski ?? []).map((x) => x.id === guncel.id ? { ...x, mesaj: guncel.mesaj } : x));
         }
       }
     );
@@ -156,6 +163,18 @@ export default function ForumDrawer({ titleId, episodeId = null, baslikAd, bolum
     if (r.error && r.error.code !== "23505") uygula(!yeni); // hata → geri al (23505 hariç)
   }
 
+  // Kendi mesajını sil (soft) — realtime UPDATE tüm istemcilerden çıkarır; yerelde de anında çıkar.
+  async function mesajSil(id) {
+    const { error } = await sohbetMesajSil(id);
+    if (!error) setMesajlar((eski) => (eski ?? []).filter((x) => x.id !== id));
+  }
+  // Kendi mesajını düzenle (yeni metin moderasyondan geçer). Dönüş: { hata?, kod? } → SohbetMesaj gösterir.
+  async function mesajDuzenle(id, yeniMetin) {
+    const r = await sohbetDuzenle({ id, content: yeniMetin.trim(), lang: (s.locale || "en").slice(0, 2) });
+    if (!r.hata) setMesajlar((eski) => (eski ?? []).map((x) => x.id === id ? { ...x, mesaj: yeniMetin.trim() } : x));
+    return r;
+  }
+
   function mesajaScroll(id) {
     const el = mesajRefleri.current[id];
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -201,6 +220,8 @@ export default function ForumDrawer({ titleId, episodeId = null, baslikAd, bolum
                 onYanitla={() => setYanitHedef(m)}
                 onScrollTo={mesajaScroll}
                 onMention={mentionTikla}
+                onSil={() => mesajSil(m.id)}
+                onDuzenle={(metin) => mesajDuzenle(m.id, metin)}
                 setRef={(el) => { mesajRefleri.current[m.id] = el; }}
               />
             ))
@@ -223,14 +244,31 @@ export default function ForumDrawer({ titleId, episodeId = null, baslikAd, bolum
   );
 }
 
-// ————— Tek sohbet mesajı: reply preview + nickname/zaman + spoiler + metin(mention) + like/reply —————
-function SohbetMesaj({ m, user, onBegen, onYanitla, onScrollTo, onMention, setRef }) {
+// ————— Tek sohbet mesajı: reply preview + nickname/zaman + ⋯menü(kendi: düzenle/sil) + spoiler +
+//         metin(mention) + like/reply. Düzenle inline (moderasyondan geçer); sil soft (realtime). —————
+function SohbetMesaj({ m, user, onBegen, onYanitla, onScrollTo, onMention, onSil, onDuzenle, setRef }) {
   const { s } = useLang();
   const [acik, setAcik] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const [duzenle, setDuzenle] = useState(false);
+  const [taslak, setTaslak] = useState(m.mesaj);
+  const [dHata, setDHata] = useState(null);
+  const [dBekle, setDBekle] = useState(false);
   const gizli = m.is_spoiler && !acik;
   const benimki = user && m.user_id === user.id;
   const begendim = !!m.benim_begenim;
   const sayi = Number(m.begeni_sayisi) || 0;
+
+  async function kaydet() {
+    const g = taslak.trim();
+    if (!g || dBekle) return;
+    setDBekle(true);
+    setDHata(null);
+    const r = await onDuzenle(g);
+    setDBekle(false);
+    if (r?.hata) return setDHata(hataMetni(s, r.kod));
+    setDuzenle(false);
+  }
 
   return (
     <div ref={setRef} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -248,53 +286,84 @@ function SohbetMesaj({ m, user, onBegen, onYanitla, onScrollTo, onMention, setRe
       <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
         <span style={{ fontWeight: 700, fontSize: 13, color: benimki ? t.accent : t.text }}>{m.nickname || "—"}</span>
         <span style={{ color: t.dim, fontSize: 11 }}>{goreceliZaman(m.created_at, s.locale)}</span>
-      </div>
-
-      {/* Spoiler blur + metin (mention render) */}
-      <div
-        onClick={() => gizli && setAcik(true)}
-        style={{ position: "relative", cursor: gizli ? "pointer" : "default", alignSelf: "flex-start", maxWidth: "100%" }}
-      >
-        <div
-          style={{
-            fontSize: 14,
-            lineHeight: 1.5,
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-            color: t.text,
-            filter: gizli ? "blur(6px)" : "none",
-            userSelect: gizli ? "none" : "auto",
-          }}
-        >
-          <MesajMetni metin={m.mesaj} onMention={onMention} />
-        </div>
-        {gizli && (
-          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 600, color: t.accent, whiteSpace: "nowrap" }}>
-            {s.forum.spoilerGizli}
+        <span style={{ flex: 1 }} />
+        {/* Kendi mesajı: ⋯ menü (Düzenle / Sil) */}
+        {benimki && !duzenle && (
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setMenu((v) => !v)} aria-label="⋯" style={{ background: "none", border: "none", color: t.dim, fontSize: 16, lineHeight: 1, cursor: "pointer", padding: "0 2px" }}>⋯</button>
+            {menu && (
+              <div onMouseLeave={() => setMenu(false)} style={{ position: "absolute", right: 0, top: 20, background: t.surface2, border: `1px solid ${t.line}`, borderRadius: 8, minWidth: 120, zIndex: 5, overflow: "hidden", display: "grid" }}>
+                <button style={menuOge} onClick={() => { setMenu(false); setTaslak(m.mesaj); setDuzenle(true); }}>{s.forum.duzenle}</button>
+                <button style={{ ...menuOge, color: t.danger }} onClick={() => { setMenu(false); onSil(); }}>{s.forum.sil}</button>
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Aksiyon satırı: Like (sayı + realtime) + Reply */}
-      {!gizli && (
-        <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 2 }}>
-          <button
-            onClick={onBegen}
-            aria-label={s.forum.begen}
-            aria-pressed={begendim}
-            style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", padding: 0, color: begendim ? t.accent : t.dim, fontSize: 12 }}
-          >
-            <span style={{ fontSize: 14 }}>{begendim ? "♥" : "♡"}</span>
-            {sayi > 0 ? sayi : ""}
-          </button>
-          <button
-            onClick={onYanitla}
-            aria-label={s.forum.yanitla}
-            style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: 0, color: t.dim, fontSize: 12 }}
-          >
-            ↩ {s.forum.yanitla}
-          </button>
+      {duzenle ? (
+        /* Inline düzenleme (yeni metin moderasyondan geçer) */
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <textarea value={taslak} onChange={(e) => setTaslak(e.target.value.slice(0, MAX))} rows={2}
+            style={{ ...alan, resize: "vertical", minHeight: 44 }} autoFocus
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); kaydet(); } if (e.key === "Escape") setDuzenle(false); }} />
+          {dHata && <div style={{ color: t.danger, fontSize: 12 }}>{dHata}</div>}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={kaydet} disabled={!taslak.trim() || dBekle}
+              style={{ background: t.gradient, color: "#0A0A0B", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 13, fontWeight: 700, cursor: (!taslak.trim() || dBekle) ? "default" : "pointer", opacity: (!taslak.trim() || dBekle) ? 0.6 : 1 }}>{s.forum.kaydet}</button>
+            <button onClick={() => { setDuzenle(false); setDHata(null); }}
+              style={{ background: "none", border: `1px solid ${t.line}`, borderRadius: 8, color: t.dim, padding: "7px 14px", fontSize: 13, cursor: "pointer" }}>{s.forum.iptal}</button>
+          </div>
         </div>
+      ) : (
+        <>
+          {/* Spoiler blur + metin (mention render) */}
+          <div
+            onClick={() => gizli && setAcik(true)}
+            style={{ position: "relative", cursor: gizli ? "pointer" : "default", alignSelf: "flex-start", maxWidth: "100%" }}
+          >
+            <div
+              style={{
+                fontSize: 14,
+                lineHeight: 1.5,
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+                color: t.text,
+                filter: gizli ? "blur(6px)" : "none",
+                userSelect: gizli ? "none" : "auto",
+              }}
+            >
+              <MesajMetni metin={m.mesaj} onMention={onMention} />
+            </div>
+            {gizli && (
+              <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 600, color: t.accent, whiteSpace: "nowrap" }}>
+                {s.forum.spoilerGizli}
+              </div>
+            )}
+          </div>
+
+          {/* Aksiyon satırı: Like (sayı + realtime) + Reply */}
+          {!gizli && (
+            <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 2 }}>
+              <button
+                onClick={onBegen}
+                aria-label={s.forum.begen}
+                aria-pressed={begendim}
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", padding: 0, color: begendim ? t.accent : t.dim, fontSize: 12 }}
+              >
+                <span style={{ fontSize: 14 }}>{begendim ? "♥" : "♡"}</span>
+                {sayi > 0 ? sayi : ""}
+              </button>
+              <button
+                onClick={onYanitla}
+                aria-label={s.forum.yanitla}
+                style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: 0, color: t.dim, fontSize: 12 }}
+              >
+                ↩ {s.forum.yanitla}
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -469,3 +538,4 @@ const alan = { width: "100%", padding: "10px 12px", background: t.surface2, bord
 const anaBtn = { width: "100%", background: t.gradient, color: "#0A0A0B", border: "none", borderRadius: 10, padding: "11px 18px", fontSize: 14, fontWeight: 700, cursor: "pointer" };
 const ikonBtn = { flexShrink: 0, width: 40, height: 40, background: "none", border: `1px solid ${t.line}`, borderRadius: 10, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" };
 const gonderIkon = { flexShrink: 0, width: 40, height: 40, background: t.gradient, color: "#0A0A0B", border: "none", borderRadius: 10, fontSize: 16, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" };
+const menuOge = { background: "none", border: "none", color: t.text, textAlign: "left", padding: "9px 14px", fontSize: 13, cursor: "pointer" };

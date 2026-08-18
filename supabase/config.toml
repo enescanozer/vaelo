@@ -429,6 +429,12 @@ verify_jwt = true
 # assetlerini kalıcı siler + purged_at damgalar. Secret'lar: CF_ACCOUNT_ID, CF_API_TOKEN.
 # Zamanlama: Dashboard → Edge Functions → purge-videos → Schedule, önerilen: 0 * * * *  (saatlik)
 
+[functions.wake-moderation]
+verify_jwt = false
+# ZAMANLANMIŞ keep-warm: Render moderation-service'i uyanık tutar (free-tier 15dk uyku → ilk mesaj
+# fail-closed reddi önlenir). Yalnız public /health pingler. Secret: COMPUTE_SERVICE_URL.
+# Zamanlama: Dashboard → Edge Functions → wake-moderation → Schedule, önerilen: */10 * * * *
+
 [functions.add-caption]
 verify_jwt = true
 
