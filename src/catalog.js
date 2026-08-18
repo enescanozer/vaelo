@@ -774,16 +774,9 @@ export async function forumTakipIdleri(userId) {
 // Yazma YALNIZ forum-post 'sohbet' action'ından (moderasyon FAIL-CLOSED + mute/ban + oda kilidi).
 // Okuma + realtime herkese açık RLS ile (nickname satıra denormalize → payload'da hazır).
 
-// İlk yükleme: odanın son mesajları (eskiden yeniye).
+// İlk yükleme: mesajlar + beğeni sayısı/benim beğenim + reply/mention (sohbet_getir RPC — tek sorgu).
 export async function sohbetGetir(oda, limit = 100) {
-  const { data, error } = await supabase
-    .from("sohbet_mesajlari")
-    .select("id, oda, user_id, nickname, mesaj, is_spoiler, created_at")
-    .eq("oda", oda)
-    .eq("status", "visible")
-    .is("deleted_at", null)
-    .order("created_at", { ascending: true })
-    .limit(limit);
+  const { data, error } = await supabase.rpc("sohbet_getir", { p_oda: oda, p_limit: limit });
   if (error) throw error;
   return data ?? [];
 }
@@ -833,3 +826,30 @@ export const sohbetAbonelikBirak = (kanal) => {
 export const sohbetMesajSil = (id) => supabase.rpc("sohbet_mesaj_sil", { p_id: id });
 export const sohbetMesajKaldir = (id) => supabase.rpc("sohbet_mesaj_kaldir", { p_id: id });
 export const sohbetOdaKilit = (oda, locked) => supabase.rpc("sohbet_oda_kilit", { p_oda: oda, p_locked: locked });
+
+// ————— Like (beğeni) — RLS: yalnız kendi; duplicate PK ile engellenir; sayım DB'den —————
+// userId çağırandan (RLS with check user_id=auth.uid()). oda: realtime filtre için.
+export const sohbetBegen = (mesajId, userId, oda) =>
+  supabase.from("sohbet_begeni").insert({ mesaj_id: mesajId, user_id: userId, oda });
+export const sohbetBegenKaldir = (mesajId, userId) =>
+  supabase.from("sohbet_begeni").delete().eq("mesaj_id", mesajId).eq("user_id", userId);
+
+// Beğeni realtime: odadaki like/unlike (INSERT/DELETE). Callback: (mesajId, userId, tip) tip: 'ekle'|'kaldir'
+export function sohbetBegeniAbone(oda, onDelta) {
+  const kanal = supabase
+    .channel(`sohbet_begeni:${oda}`)
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "sohbet_begeni", filter: `oda=eq.${oda}` },
+      (p) => onDelta && onDelta(p.new.mesaj_id, p.new.user_id, "ekle"))
+    .on("postgres_changes", { event: "DELETE", schema: "public", table: "sohbet_begeni", filter: `oda=eq.${oda}` },
+      (p) => onDelta && onDelta(p.old.mesaj_id, p.old.user_id, "kaldir"))
+    .subscribe();
+  return kanal;
+}
+
+// Mention autocomplete: nickname ile kullanıcı ara (authenticated). → [{ id, display_name }]
+export async function sohbetKullaniciAra(q) {
+  const s = (q || "").trim();
+  if (!s) return [];
+  const { data } = await supabase.rpc("sohbet_kullanici_ara", { p_q: s, p_limit: 6 });
+  return data ?? [];
+}

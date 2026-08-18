@@ -2,6 +2,7 @@
 // Overlay olarak açılır (desktop sağ drawer / mobil bottom-sheet) — oynatıcıya DOKUNMAZ.
 // Yazma YALNIZ forum-post 'sohbet' action'ından geçer (moderasyon FAIL-CLOSED + mute/ban + oda
 // kilidi backend'de zorunlu; catalog.js sohbetGonder). Okuma + realtime herkese açık RLS ile.
+// Özellikler: Like (RLS + realtime), Reply (parent preview + scroll), Mention (@autocomplete + clickable).
 import { useEffect, useRef, useState } from "react";
 import {
   sohbetGetir,
@@ -9,6 +10,10 @@ import {
   sohbetGonder,
   sohbetAbone,
   sohbetAbonelikBirak,
+  sohbetBegen,
+  sohbetBegenKaldir,
+  sohbetBegeniAbone,
+  sohbetKullaniciAra,
 } from "./catalog";
 import { useLang } from "./i18n";
 import { t } from "./theme";
@@ -41,6 +46,25 @@ function goreceliZaman(iso, locale) {
   return rtf.format(-Math.floor(sn / 86400), "day");
 }
 
+// Mesaj metni: @mention token'larını accent + tıklanabilir span'e çevirir (Discord/Reddit hissi).
+function MesajMetni({ metin, onMention }) {
+  const parcalar = String(metin ?? "").split(/(@[A-Za-z0-9_.]+)/g);
+  return parcalar.map((p, i) => {
+    if (/^@[A-Za-z0-9_.]+$/.test(p)) {
+      return (
+        <span
+          key={i}
+          onClick={(e) => { e.stopPropagation(); onMention && onMention(p.slice(1)); }}
+          style={{ color: t.accent, fontWeight: 600, cursor: "pointer" }}
+        >
+          {p}
+        </span>
+      );
+    }
+    return <span key={i}>{p}</span>;
+  });
+}
+
 // ————— Sohbet drawer (desktop sağ panel / mobil bottom-sheet) —————
 export default function ForumDrawer({ titleId, episodeId = null, baslikAd, bolumAd, user, girisAc, kapat }) {
   const { s } = useLang();
@@ -50,7 +74,10 @@ export default function ForumDrawer({ titleId, episodeId = null, baslikAd, bolum
   const [mesajlar, setMesajlar] = useState(null);
   const [kilitli, setKilitli] = useState(false);
   const [acildi, setAcildi] = useState(false);
+  const [yanitHedef, setYanitHedef] = useState(null); // hangi mesaja yanıt yazılıyor | null
+  const [prefill, setPrefill] = useState(null);        // mention tıklama → composer'a ekle {metin, nonce}
   const listeRef = useRef(null);
+  const mesajRefleri = useRef({}); // mesaj id → element (reply scroll için)
 
   // Listeye mesaj ekle (id ile tekilleştir → optimistik gönderim + realtime yankısı çakışmaz).
   function ekle(m) {
@@ -61,30 +88,43 @@ export default function ForumDrawer({ titleId, episodeId = null, baslikAd, bolum
     });
   }
 
-  // İlk yükleme + realtime abonelik (oda değişince yeniden kurulur).
+  // İlk yükleme + realtime abonelik (mesaj + beğeni). oda/kullanıcı değişince yeniden kurulur.
   useEffect(() => {
     let aktif = true;
     setMesajlar(null);
+    setYanitHedef(null);
     sohbetGetir(oda)
       .then((m) => aktif && setMesajlar(m))
       .catch(() => aktif && setMesajlar([]));
     sohbetOdaDurum(oda).then((k) => aktif && setKilitli(k)).catch(() => {});
+
     const kanal = sohbetAbone(
       oda,
-      (yeni) => aktif && ekle(yeni),
+      // Yeni mesaj: realtime payload'ında hesaplanan alanlar (beğeni) yok → 0/false varsayılan.
+      (yeni) => aktif && ekle({ ...yeni, begeni_sayisi: yeni.begeni_sayisi ?? 0, benim_begenim: yeni.benim_begenim ?? false }),
       (guncel) => {
-        // UPDATE: kaldırılan/silinen mesajı listeden canlı çıkar.
         if (aktif && (guncel.status !== "visible" || guncel.deleted_at)) {
           setMesajlar((eski) => (eski ?? []).filter((x) => x.id !== guncel.id));
         }
       }
     );
+    // Beğeni realtime: BAŞKALARININ like/unlike'ı (kendiminki optimistik işlenir → çift sayma yok).
+    const begeniKanal = sohbetBegeniAbone(oda, (mesajId, userId, tip) => {
+      if (!aktif || userId === user?.id) return;
+      setMesajlar((eski) => (eski ?? []).map((x) =>
+        x.id === mesajId
+          ? { ...x, begeni_sayisi: Math.max(0, (Number(x.begeni_sayisi) || 0) + (tip === "ekle" ? 1 : -1)) }
+          : x
+      ));
+    });
+
     return () => {
       aktif = false;
       sohbetAbonelikBirak(kanal);
+      sohbetAbonelikBirak(begeniKanal);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [oda]);
+  }, [oda, user?.id]);
 
   // Giriş animasyonu + ESC ile kapat.
   useEffect(() => {
@@ -103,8 +143,26 @@ export default function ForumDrawer({ titleId, episodeId = null, baslikAd, bolum
     if (el) el.scrollTop = el.scrollHeight;
   }, [mesajlar]);
 
-  // Başlık HER ZAMAN sadece "Topluluk" (s.forum.baslik). Bölüm etiketi / alt satır gösterilmez.
-  const ust = s.forum.baslik;
+  // Like aç/kapa — optimistik + RLS (yalnız kendi; duplicate PK 23505 → zaten var, iyimser doğru).
+  async function begenDegis(m) {
+    if (!user) return girisAc();
+    const yeni = !m.benim_begenim;
+    const uygula = (aktif) => setMesajlar((eski) => (eski ?? []).map((x) =>
+      x.id === m.id
+        ? { ...x, benim_begenim: aktif, begeni_sayisi: Math.max(0, (Number(x.begeni_sayisi) || 0) + (aktif ? 1 : -1)) }
+        : x));
+    uygula(yeni); // optimistik
+    const r = yeni ? await sohbetBegen(m.id, user.id, oda) : await sohbetBegenKaldir(m.id, user.id);
+    if (r.error && r.error.code !== "23505") uygula(!yeni); // hata → geri al (23505 hariç)
+  }
+
+  function mesajaScroll(id) {
+    const el = mesajRefleri.current[id];
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  const mentionTikla = (nick) => setPrefill({ metin: `@${nick} `, nonce: Date.now() });
+
+  const ust = s.forum.baslik; // başlık HER ZAMAN sadece "Topluluk"
 
   return (
     <div style={arkaPlan(mobil)} onClick={kapat}>
@@ -134,30 +192,65 @@ export default function ForumDrawer({ titleId, episodeId = null, baslikAd, bolum
           ) : mesajlar.length === 0 ? (
             <div style={{ color: t.dim, fontSize: 14, margin: "auto", textAlign: "center", maxWidth: 240 }}>{s.forum.sohbetBos}</div>
           ) : (
-            mesajlar.map((m) => <SohbetMesaj key={m.id} m={m} user={user} />)
+            mesajlar.map((m) => (
+              <SohbetMesaj
+                key={m.id}
+                m={m}
+                user={user}
+                onBegen={() => begenDegis(m)}
+                onYanitla={() => setYanitHedef(m)}
+                onScrollTo={mesajaScroll}
+                onMention={mentionTikla}
+                setRef={(el) => { mesajRefleri.current[m.id] = el; }}
+              />
+            ))
           )}
         </div>
 
-        {/* Composer — panelin ALTINA sabitlenmiş (chat gönderme hissi) */}
-        <SohbetYazac oda={oda} user={user} girisAc={girisAc} kilitli={kilitli} ekle={ekle} />
+        {/* Composer — panelin ALTINA sabitlenmiş */}
+        <SohbetYazac
+          oda={oda}
+          user={user}
+          girisAc={girisAc}
+          kilitli={kilitli}
+          ekle={ekle}
+          yanitHedef={yanitHedef}
+          yanitIptal={() => setYanitHedef(null)}
+          prefill={prefill}
+        />
       </div>
     </div>
   );
 }
 
-// ————— Tek sohbet mesajı (nickname + göreceli zaman + metin + mesaj-başına spoiler blur) —————
-function SohbetMesaj({ m, user }) {
+// ————— Tek sohbet mesajı: reply preview + nickname/zaman + spoiler + metin(mention) + like/reply —————
+function SohbetMesaj({ m, user, onBegen, onYanitla, onScrollTo, onMention, setRef }) {
   const { s } = useLang();
   const [acik, setAcik] = useState(false);
   const gizli = m.is_spoiler && !acik;
   const benimki = user && m.user_id === user.id;
+  const begendim = !!m.benim_begenim;
+  const sayi = Number(m.begeni_sayisi) || 0;
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+    <div ref={setRef} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {/* Reply önizlemesi (parent'a tıkla → scroll). Preview yazma anında yakalandığı için parent silinse de kalır. */}
+      {(m.reply_to || m.reply_ozet) && (
+        <div
+          onClick={() => m.reply_to && onScrollTo(m.reply_to)}
+          style={{ display: "flex", alignItems: "center", gap: 6, cursor: m.reply_to ? "pointer" : "default", borderLeft: `2px solid ${t.line}`, paddingLeft: 8, maxWidth: "100%" }}
+        >
+          <span style={{ color: t.dim, fontSize: 11, flexShrink: 0 }}>↩ {m.reply_nickname || "—"}</span>
+          <span style={{ color: t.dim, fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{m.reply_ozet || ""}</span>
+        </div>
+      )}
+
       <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
         <span style={{ fontWeight: 700, fontSize: 13, color: benimki ? t.accent : t.text }}>{m.nickname || "—"}</span>
         <span style={{ color: t.dim, fontSize: 11 }}>{goreceliZaman(m.created_at, s.locale)}</span>
       </div>
-      {/* Spoiler: bu mesaja özel blur + tıkla-göster overlay */}
+
+      {/* Spoiler blur + metin (mention render) */}
       <div
         onClick={() => gizli && setAcik(true)}
         style={{ position: "relative", cursor: gizli ? "pointer" : "default", alignSelf: "flex-start", maxWidth: "100%" }}
@@ -173,7 +266,7 @@ function SohbetMesaj({ m, user }) {
             userSelect: gizli ? "none" : "auto",
           }}
         >
-          {m.mesaj}
+          <MesajMetni metin={m.mesaj} onMention={onMention} />
         </div>
         {gizli && (
           <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 600, color: t.accent, whiteSpace: "nowrap" }}>
@@ -181,18 +274,50 @@ function SohbetMesaj({ m, user }) {
           </div>
         )}
       </div>
+
+      {/* Aksiyon satırı: Like (sayı + realtime) + Reply */}
+      {!gizli && (
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 2 }}>
+          <button
+            onClick={onBegen}
+            aria-label={s.forum.begen}
+            aria-pressed={begendim}
+            style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", padding: 0, color: begendim ? t.accent : t.dim, fontSize: 12 }}
+          >
+            <span style={{ fontSize: 14 }}>{begendim ? "♥" : "♡"}</span>
+            {sayi > 0 ? sayi : ""}
+          </button>
+          <button
+            onClick={onYanitla}
+            aria-label={s.forum.yanitla}
+            style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: 0, color: t.dim, fontSize: 12 }}
+          >
+            ↩ {s.forum.yanitla}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
-// ————— Composer: tek satır (birkaç satıra kadar büyür) + Spoiler geçişi + gönder ikonu —————
-function SohbetYazac({ oda, user, girisAc, kilitli, ekle }) {
+// ————— Composer: reply bar + mention autocomplete + Spoiler + gönder ikonu —————
+function SohbetYazac({ oda, user, girisAc, kilitli, ekle, yanitHedef, yanitIptal, prefill }) {
   const { s } = useLang();
   const [metin, setMetin] = useState("");
   const [spoiler, setSpoiler] = useState(false);
   const [bekliyor, setBekliyor] = useState(false);
   const [hata, setHata] = useState(null);
+  const [mentionListe, setMentionListe] = useState([]); // autocomplete sonuçları
+  const mentionHarita = useRef(new Map()); // lower(display_name) → user id (seçilen mention'lar)
   const ref = useRef(null);
+
+  // Dışarıdan mention tıklama (prefill) → composer'a @nick ekle + focus.
+  useEffect(() => {
+    if (!prefill) return;
+    setMetin((m) => (m ? m.replace(/\s*$/, " ") : "") + prefill.metin);
+    ref.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill?.nonce]);
 
   if (!user) {
     return (
@@ -209,21 +334,56 @@ function SohbetYazac({ oda, user, girisAc, kilitli, ekle }) {
     );
   }
 
+  // Metin değişince: caret'teki @token'ı yakala → mention autocomplete.
+  async function metinDegis(deger) {
+    setMetin(deger.slice(0, MAX));
+    const caret = ref.current?.selectionStart ?? deger.length;
+    const eslesme = /(?:^|\s)@([A-Za-z0-9_.]{1,20})$/.exec(deger.slice(0, caret));
+    if (eslesme) {
+      const sonuc = await sohbetKullaniciAra(eslesme[1]);
+      setMentionListe(sonuc);
+    } else {
+      setMentionListe([]);
+    }
+  }
+  function mentionSec(u) {
+    const yeni = metin.replace(/(^|\s)@([A-Za-z0-9_.]{1,20})$/, `$1@${u.display_name} `);
+    mentionHarita.current.set(u.display_name.toLowerCase(), u.id);
+    setMetin(yeni);
+    setMentionListe([]);
+    ref.current?.focus();
+  }
+
   async function gonder() {
     const g = metin.trim();
     if (!g || bekliyor) return;
     setBekliyor(true);
     setHata(null);
-    const r = await sohbetGonder({ oda, content: g, is_spoiler: spoiler, lang: (s.locale || "en").slice(0, 2) });
+    // Metinde geçen @nickname'lerden GEÇERLİ id'leri topla (autocomplete'ten seçilenler; silinenler düşer).
+    const mentions = [];
+    for (const es of g.matchAll(/@([A-Za-z0-9_.]+)/g)) {
+      const id = mentionHarita.current.get(es[1].toLowerCase());
+      if (id && !mentions.includes(id)) mentions.push(id);
+    }
+    const r = await sohbetGonder({
+      oda,
+      content: g,
+      is_spoiler: spoiler,
+      lang: (s.locale || "en").slice(0, 2),
+      reply_to: yanitHedef?.id ?? null,
+      mentions,
+    });
     setBekliyor(false);
     if (r.hata) return setHata(hataMetni(s, r.kod));
     if (r.mesaj) ekle(r.mesaj); // optimistik (realtime yankısı id ile tekilleştirilir)
     setMetin("");
     setSpoiler(false);
+    setMentionListe([]);
+    mentionHarita.current.clear();
+    yanitIptal && yanitIptal();
     if (ref.current) ref.current.style.height = "auto";
   }
   function tus(e) {
-    // Enter → gönder, Shift+Enter → yeni satır (chat kuralı)
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       gonder();
@@ -233,12 +393,33 @@ function SohbetYazac({ oda, user, girisAc, kilitli, ekle }) {
     const el = e.target;
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, 120) + "px";
-    setMetin(el.value.slice(0, MAX));
+    metinDegis(el.value);
   }
 
   const kapali = !metin.trim() || bekliyor;
   return (
     <div style={yazacSar}>
+      {/* Reply bar */}
+      {yanitHedef && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, padding: "6px 10px", background: t.surface, border: `1px solid ${t.line}`, borderRadius: 8 }}>
+          <span style={{ color: t.dim, fontSize: 12, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            ↩ {s.forum.yanitliyor} <b style={{ color: t.text }}>{yanitHedef.nickname}</b>: {String(yanitHedef.mesaj || "").slice(0, 60)}
+          </span>
+          <button onClick={yanitIptal} aria-label={s.forum.kapat} style={{ background: "none", border: "none", color: t.dim, fontSize: 16, lineHeight: 1, cursor: "pointer", padding: 0 }}>✕</button>
+        </div>
+      )}
+
+      {/* Mention autocomplete */}
+      {mentionListe.length > 0 && (
+        <div style={{ marginBottom: 8, background: t.surface2, border: `1px solid ${t.line}`, borderRadius: 10, overflow: "hidden" }}>
+          {mentionListe.map((u) => (
+            <button key={u.id} type="button" onClick={() => mentionSec(u)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", color: t.text, padding: "9px 12px", fontSize: 13, cursor: "pointer" }}>
+              <span style={{ color: t.accent }}>@</span>{u.display_name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {hata && <div style={{ color: t.danger, fontSize: 12, marginBottom: 6 }}>{hata}</div>}
       <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
         <button

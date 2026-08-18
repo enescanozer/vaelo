@@ -88,11 +88,34 @@ Deno.serve(async (req) => {
       // nickname: herkese açık ad (üretici rozetiyle AYNI display_name) — service role profiles okur
       const { data: pr } = await servis.from("profiles").select("display_name").eq("id", user.id).single();
       const nickname = String(pr?.display_name || "user").slice(0, 40);
+
+      // ——— Reply: parent AYNI odada + görünür olmalı; preview (nickname+özet) DENORMALİZE edilir
+      // (realtime payload self-contained; parent sonradan silinse de önizleme korunur). Geçersizse yok sayılır.
+      let replyTo: string | null = null, replyNick: string | null = null, replyOzet: string | null = null;
+      const rid = String(g?.reply_to ?? "").trim();
+      if (/^[0-9a-fA-F-]{36}$/.test(rid)) {
+        const { data: p } = await servis.from("sohbet_mesajlari")
+          .select("id, oda, nickname, mesaj, status, deleted_at").eq("id", rid).maybeSingle();
+        if (p && p.oda === oda && p.status === "visible" && !p.deleted_at) {
+          replyTo = p.id; replyNick = p.nickname; replyOzet = String(p.mesaj || "").slice(0, 140);
+        }
+      }
+
+      // ——— Mention: yalnız GERÇEK kullanıcı id'leri saklanır (geçersiz mention edilemez).
+      const hamMentions = Array.isArray(g?.mentions) ? g.mentions.slice(0, 20).filter((x: unknown) => typeof x === "string" && /^[0-9a-fA-F-]{36}$/.test(x)) : [];
+      let mentions: string[] = [];
+      if (hamMentions.length) {
+        const { data: gecerli } = await servis.from("profiles").select("id").in("id", hamMentions);
+        mentions = (gecerli ?? []).map((r: { id: string }) => r.id);
+      }
+
       const { data: row, error } = await servis.from("sohbet_mesajlari")
-        .insert({ oda, user_id: user.id, nickname, mesaj: content, is_spoiler: isSpoiler })
-        .select("id, oda, user_id, nickname, mesaj, is_spoiler, created_at").single();
+        .insert({ oda, user_id: user.id, nickname, mesaj: content, is_spoiler: isSpoiler,
+                  reply_to: replyTo, reply_nickname: replyNick, reply_ozet: replyOzet, mentions })
+        .select("id, oda, user_id, nickname, mesaj, is_spoiler, reply_to, reply_nickname, reply_ozet, mentions, created_at").single();
       if (error) { console.error(error.message); return yanit({ hata: "sunucu", kod: "sunucu" }, 500); }
-      return yanit({ ok: true, mesaj: row });
+      // sohbet_getir RPC şekliyle uyum: yeni mesajda beğeni 0 (optimistik + realtime tutarlı)
+      return yanit({ ok: true, mesaj: { ...row, begeni_sayisi: 0, benim_begenim: false } });
     }
 
     if (action === "thread") {
