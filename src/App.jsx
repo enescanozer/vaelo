@@ -1,6 +1,6 @@
 // Kabuk: üst menü + sekme geçişi + dil anahtarı + bildirim zili + giriş/profil
 // modalları + e-posta doğrulama şeridi
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useAuth, signOut } from "./auth";
 import { supabase } from "./supabaseClient";
 import { getNotifications, markNotificationsRead, getYarismaGorunur } from "./catalog";
@@ -37,7 +37,12 @@ const SEKMELER = [
 export default function App() {
   const { user, profile, profilYenile } = useAuth();
   const { s } = useLang();
-  const [sekme, setSekme] = useState("kesfet");
+  const [sekme, setSekme] = useState(() => {
+    // Deep-link: yalnız herkese-açık sekmeler URL'den başlatılır (korumalı sekmeler kesfet'e düşer;
+    // oturum-içi geri/ileri state.sekme'den her sekmeyi geri yükler).
+    const q = new URLSearchParams(window.location.search).get("sekme");
+    return q && ["tablo", "yarisma", "uretici"].includes(q) ? q : "kesfet";
+  });
   const [girisAcik, setGirisAcik] = useState(false);
   const [profilAcik, setProfilAcik] = useState(false);
   const [ayarlarAcik, setAyarlarAcik] = useState(false);
@@ -51,6 +56,14 @@ export default function App() {
   // Logo/Keşfet tıklanınca Viewer'ı ana sayfaya döndüren sayaç sinyali
   const [anaSinyal, setAnaSinyal] = useState(0);
   const [yarismaGorunur, setYarismaGorunur] = useState(false);
+
+  // ————— Tarayıcı geçmişi: TAB (sekme) navigasyonu —————
+  // Viewer.jsx kesfet-içi (video/forum) history'i yönetir; burası TAB seviyesini ekler. ORTAK
+  // history.state şeması: { sekme, id, forum }. App yalnız `sekme`'yi, Viewer `id/forum`'u yazar
+  // (sekme kesfet iken). İki popstate dinleyicisi çakışmaz: App sekme'yi, Viewer id/forum'u okur.
+  const sekmeRef = useRef(sekme);       // güncel sekme (popstate karşılaştırması, kapanış closure'ı)
+  const popRefApp = useRef(false);      // popstate kaynaklı sekme değişimi → history'e tekrar yazma
+  const ilkRefApp = useRef(true);       // ilk giriş: pushState değil replaceState
 
   const rol = profile?.role;
   const admin = rol === "admin";
@@ -100,6 +113,39 @@ export default function App() {
   // Yarışma sekmesi penceresi (aktif VEYA bitiş+2 hafta) — bir kez yüklenir
   useEffect(() => {
     getYarismaGorunur().then(setYarismaGorunur).catch(() => {});
+  }, []);
+
+  // Sekme değişince history entry (ilk girişte replace + Viewer'ın yazdığı id/forum'u koru).
+  useEffect(() => {
+    sekmeRef.current = sekme;
+    if (popRefApp.current) { popRefApp.current = false; return; } // popstate → URL zaten değişti
+    if (ilkRefApp.current) {
+      ilkRefApp.current = false;
+      // İlk giriş: URL'i KORU (deep-link ?b= / ?sekme=), mevcut entry'ye sekme'yi işle.
+      window.history.replaceState(
+        { ...(window.history.state || {}), sekme },
+        "",
+        window.location.pathname + window.location.search
+      );
+      return;
+    }
+    // Tab değişti → YENİ entry. Video bağlamı temizlenir; kesfet'e dönüşte Viewer id'yi yeniden kurar.
+    const url = sekme === "kesfet" ? window.location.pathname : `${window.location.pathname}?sekme=${sekme}`;
+    window.history.pushState({ sekme, id: null, forum: null }, "", url);
+  }, [sekme]);
+
+  // Geri/İleri: history.state.sekme'den (yoksa ?sekme=) doğru sekmeyi geri yükle. Viewer'ın kesfet-içi
+  // popstate dinleyicisiyle çakışmaz — bu yalnız sekme değişimini ele alır.
+  useEffect(() => {
+    const dinle = (e) => {
+      const hedef = e.state?.sekme ?? new URLSearchParams(window.location.search).get("sekme") ?? "kesfet";
+      if (hedef !== sekmeRef.current) {
+        popRefApp.current = true;
+        setSekme(hedef);
+      }
+    };
+    window.addEventListener("popstate", dinle);
+    return () => window.removeEventListener("popstate", dinle);
   }, []);
 
   // Şifre sıfırlama: e-postadaki bağlantı bu siteye recovery token'ıyla döner;

@@ -52,10 +52,14 @@ let derinBaglantiKullanildi = false;
 
 export default function Viewer({ user, istenen, anaSinyal, festivalGit, girisAc }) {
   // gorunum: {tip:"ana"} | {tip:"detay", id} | {tip:"oynat", video, baslik, baslangic}
+  // Mount kaynağı: (1) history.state.id — tab-geri ile kesfet'e dönüşte videoyu geri yükler;
+  // (2) ilk açılışta ?b= deep-link. İkisi de yoksa ana sayfa.
   const [gorunum, setGorunum] = useState(() => {
-    const paylasilan =
-      !derinBaglantiKullanildi && new URLSearchParams(window.location.search).get("b");
-    return paylasilan ? { tip: "detay", id: paylasilan } : { tip: "ana" };
+    const st = window.history.state;
+    const id =
+      (st && st.id) ||
+      (!derinBaglantiKullanildi ? new URLSearchParams(window.location.search).get("b") : null);
+    return id ? { tip: "detay", id } : { tip: "ana" };
   });
   useEffect(() => {
     derinBaglantiKullanildi = true;
@@ -63,7 +67,8 @@ export default function Viewer({ user, istenen, anaSinyal, festivalGit, girisAc 
 
   // Forum: mevcut görünümün ÜSTÜNE overlay (drawer/bottom-sheet) olarak açılır. Böylece
   // oynatıcı yeniden mount edilmez, video durmaz (tam-sayfa forum yaklaşımı kaldırıldı).
-  const [forum, setForum] = useState(null); // { titleId, episodeId, baslikAd, bolumAd } | null
+  // Forum overlay — history.state.forum'dan başlatılır (tab-geri/ileri ile drawer geri yüklenir).
+  const [forum, setForum] = useState(() => (window.history.state && window.history.state.forum) || null);
   const forumAc = (titleId, episodeId, baslikAd, bolumAd) =>
     setForum({ titleId, episodeId, baslikAd, bolumAd });
 
@@ -82,12 +87,51 @@ export default function Viewer({ user, istenen, anaSinyal, festivalGit, girisAc 
     if (istenen?.id) setGorunum({ tip: "detay", id: istenen.id });
   }, [istenen]);
 
-  // Adres çubuğunu görünümle eşle: detay/oynatıcıda ?b=<id>, ana sayfada temiz
+  // ————— Tarayıcı geçmişi (browser back/forward) —————
+  // Kök sorun (eski): navigasyonda YALNIZ replaceState kullanılıyordu (pushState YOK) + popstate
+  // dinleyici YOK → tarayıcı geri tuşu uygulama içi görünümler arasında gezmiyordu (uygulamayı
+  // bırakıyordu). Çözüm: anlamlı görünüm değişiminde pushState (aynı id = aynı sayfa → replace) +
+  // popstate ile state'i geri yükle. ?b= deep-link davranışı korunur (aynı URL şeması).
+  const popRef = useRef(false);       // popstate kaynaklı değişim → history'e tekrar yazma (döngü önle)
+  const ilkRef = useRef(true);        // ilk giriş: pushState değil replaceState (fantom entry olmasın)
+  const mevcutIdRef = useRef(null);   // aktif mantıksal sayfa id'si (aynı videoda forum aç/kapa → player RESET olmasın)
+
+  // gorunum + forum → history.state ({id, forum}) + url (?b=id). detay↔oynat aynı id = aynı sayfa.
   useEffect(() => {
-    const id =
-      gorunum.tip === "detay" ? gorunum.id : gorunum.tip === "oynat" ? gorunum.baslik.id : null;
-    window.history.replaceState(null, "", id ? `?b=${id}` : window.location.pathname);
-  }, [gorunum]);
+    const id = gorunum.tip === "ana" ? null : gorunum.tip === "oynat" ? gorunum.baslik.id : gorunum.id;
+    mevcutIdRef.current = id;
+    if (popRef.current) { popRef.current = false; return; } // popstate → URL zaten değişti, dokunma
+    const url = id ? `?b=${id}` : window.location.pathname;
+    const durum = { sekme: "kesfet", id, forum: forum || null }; // sekme: App'in popstate'i için
+    if (ilkRef.current) {
+      ilkRef.current = false;
+      window.history.replaceState(durum, "", url); // ilk giriş: mevcut entry'yi damgala
+      return;
+    }
+    const onceki = window.history.state || {};
+    const yeniSayfa = id !== (onceki.id ?? null);       // farklı video / ana ↔ detay → yeni entry
+    const forumAcildi = !!durum.forum && !onceki.forum; // forum kapalı→açık → yeni entry (geri ile kapansın)
+    if (yeniSayfa || forumAcildi) window.history.pushState(durum, "", url);
+    else window.history.replaceState(durum, "", url);
+  }, [gorunum, forum]);
+
+  // Geri/İleri (popstate): history.state'ten görünümü + forum overlay'ini geri yükle.
+  useEffect(() => {
+    const dinle = (e) => {
+      const st = e.state || {};
+      // Tab-seviyesi hedef (kesfet dışı) → App'in popstate handler'ı ele alır; Viewer karışmaz.
+      if (st.sekme && st.sekme !== "kesfet") return;
+      const hedefId = st.id ?? new URLSearchParams(window.location.search).get("b") ?? null;
+      popRef.current = true;
+      // Yalnız sayfa GERÇEKTEN değiştiyse görünümü değiştir → aynı videoda forum toggling player'ı RESETLEMEZ
+      if (hedefId !== mevcutIdRef.current) {
+        setGorunum(hedefId ? { tip: "detay", id: hedefId } : { tip: "ana" });
+      }
+      setForum(st.forum || null);
+    };
+    window.addEventListener("popstate", dinle);
+    return () => window.removeEventListener("popstate", dinle);
+  }, []);
 
   const oynat = (video, baslik, baslangic = 0) =>
     setGorunum({ tip: "oynat", video, baslik, baslangic });
@@ -139,7 +183,12 @@ export default function Viewer({ user, istenen, anaSinyal, festivalGit, girisAc 
           bolumAd={forum.bolumAd}
           user={user}
           girisAc={girisAc}
-          kapat={() => setForum(null)}
+          kapat={() => {
+            // Forum açılışında bir history entry push edildi → geri alarak kapat (popstate forum'u
+            // temizler); böylece tarayıcı geri tuşu ile ESC/✕/backdrop AYNI davranır. Entry yoksa düz kapat.
+            if (window.history.state?.forum) window.history.back();
+            else setForum(null);
+          }}
         />
       )}
     </>
