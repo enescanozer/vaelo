@@ -1201,8 +1201,9 @@ function Oynatici({ video, baslik, baslangic = 0, user, oynat, geri, girisAc, fo
   const [ekli, setEkli] = useState(null); // null: bilinmiyor
   const [kopyalandi, setKopyalandi] = useState(false);
   const [menuAcik, setMenuAcik] = useState(false);
+  const [aciklamaAcik, setAciklamaAcik] = useState(false); // mobil: uzun açıklama aç/kapa
   const gen = usePencereGen();
-  const dar = gen < 480; // Paylaş etiketi mobilde ikon-only olur
+  const dar = gen < 480; // mobil kırılım: üretici satırı 2 sıra, puan 5x2 grid, açıklama collapse vb.
   useEffect(() => {
     let aktif = true;
     setEkli(null);
@@ -1490,13 +1491,22 @@ function Oynatici({ video, baslik, baslangic = 0, user, oynat, geri, girisAc, fo
         )}
       </div>
 
-      {/* Image 4 düzeni: başlık → üretici satırı (aksiyonlar) → çizgi → iki sütun → metadata */}
-      <div style={{ marginTop: 24 }}>
-        {/* Başlık */}
-        <div style={{ fontFamily: t.display, fontWeight: 800, fontSize: "clamp(24px, 4vw, 34px)", lineHeight: 1.12 }}>
+      {/* Image 4 düzeni (desktop) + MOBİL-ÖZEL geçiş (dar<480): daha küçük başlık, 2-sıra üretici
+          satırı, 5x2 puan grid'i, açıklama collapse, tam-genişlik yığın ve mobil dikey ritim. */}
+      <div style={{ marginTop: dar ? 18 : 24 }}>
+        {/* Başlık — mobilde daha küçük, en fazla 2 satır (uzun başlıklar temiz kırpılır) */}
+        <div
+          style={{
+            fontFamily: t.display,
+            fontWeight: 800,
+            fontSize: dar ? 21 : "clamp(24px, 4vw, 34px)",
+            lineHeight: dar ? 1.2 : 1.12,
+            ...(dar ? { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } : {}),
+          }}
+        >
           {baslik.name}
           {baslik.kind === "dizi" && (
-            <span style={{ color: t.dim, fontWeight: 400, fontSize: 16 }}>
+            <span style={{ color: t.dim, fontWeight: 400, fontSize: dar ? 14 : 16 }}>
               {"  "}
               {s.genel.seb(video.season ?? 1, video.episode ?? 1)}
             </span>
@@ -1511,15 +1521,15 @@ function Oynatici({ video, baslik, baslangic = 0, user, oynat, geri, girisAc, fo
           </div>
         )}
 
-        {/* Üretici satırı: avatar + ad (sol) | kalp + Paylaş + ⋯ (sağ) */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginTop: 18, flexWrap: "wrap" }}>
+        {/* Üretici satırı — mobilde 2 SIRA (bilgi üstte, aksiyonlar altta sağa hizalı); desktop tek sıra */}
+        <div style={{ display: "flex", flexDirection: dar ? "column" : "row", alignItems: dar ? "stretch" : "center", justifyContent: "space-between", gap: dar ? 12 : 16, marginTop: dar ? 16 : 18 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-            <Avatar ad={uretici?.display_name || baslik.name} boyut={44} />
+            <Avatar ad={uretici?.display_name || baslik.name} boyut={dar ? 40 : 44} />
             <div style={{ fontWeight: 700, fontSize: 15, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {uretici?.display_name || s.kesfet.uretici}
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, justifyContent: dar ? "flex-end" : "flex-start" }}>
             <button
               onClick={listemDegistir}
               aria-label={s.kesfet.listemeEkle}
@@ -1531,7 +1541,7 @@ function Oynatici({ video, baslik, baslangic = 0, user, oynat, geri, girisAc, fo
             <button
               onClick={paylas}
               title={s.kesfet.paylas}
-              style={{ ...yuvarlakBtn, width: dar ? 42 : "auto", padding: dar ? 0 : "0 16px", gap: 8 }}
+              style={{ ...yuvarlakBtn, width: dar ? 44 : "auto", padding: dar ? 0 : "0 16px", gap: 8 }}
             >
               <span style={{ fontSize: 15 }}>↗</span>
               {!dar && <span style={{ fontSize: 14, whiteSpace: "nowrap" }}>{kopyalandi ? s.kesfet.kopyalandi : s.kesfet.paylas}</span>}
@@ -1539,7 +1549,7 @@ function Oynatici({ video, baslik, baslangic = 0, user, oynat, geri, girisAc, fo
             <div style={{ position: "relative" }}>
               <button onClick={() => setMenuAcik((v) => !v)} aria-label="⋯" style={yuvarlakBtn}>⋯</button>
               {menuAcik && (
-                <div onMouseLeave={() => setMenuAcik(false)} style={{ position: "absolute", right: 0, top: 48, background: t.surface2, border: `1px solid ${t.line}`, borderRadius: 10, minWidth: 180, zIndex: 5, overflow: "hidden", display: "grid" }}>
+                <div onMouseLeave={() => setMenuAcik(false)} style={{ position: "absolute", right: 0, top: 50, background: t.surface2, border: `1px solid ${t.line}`, borderRadius: 10, minWidth: 180, zIndex: 5, overflow: "hidden", display: "grid" }}>
                   <button style={menuOge2} onClick={() => { setMenuAcik(false); paylas(); }}>{s.kesfet.paylas}</button>
                   {[["instagram", "Instagram"], ["tiktok", "TikTok"], ["youtube", "YouTube"], ["twitter", "X"], ["website", s.kesfet.website]].map(([p, et]) => {
                     const url = uretici && sosyalUrl(p, uretici[p]);
@@ -1556,25 +1566,49 @@ function Oynatici({ video, baslik, baslangic = 0, user, oynat, geri, girisAc, fo
           </div>
         </div>
 
-        <hr style={{ border: "none", borderTop: `1px solid ${t.line}`, margin: "20px 0" }} />
+        <hr style={{ border: "none", borderTop: `1px solid ${t.line}`, margin: dar ? "16px 0" : "20px 0" }} />
 
-        {/* İki sütun: Açıklama (sol) | Puan + Topluluk (sağ). Dar ekranda alt alta yığılır (flexWrap). */}
-        <div style={{ display: "flex", gap: 40, flexWrap: "wrap", alignItems: "flex-start" }}>
-          <div style={{ flex: "1 1 340px", minWidth: 0 }}>
+        {/* İki sütun (desktop) / dikey tam-genişlik yığın (mobil). Mobilde gap daha sıkı. */}
+        <div style={{ display: "flex", gap: dar ? 26 : 40, flexWrap: "wrap", alignItems: "flex-start" }}>
+          <div style={{ flex: dar ? "1 1 100%" : "1 1 340px", minWidth: 0 }}>
             <div style={{ fontFamily: t.display, fontWeight: 700, fontSize: 18, marginBottom: 12 }}>{s.oynatici.aciklama}</div>
             {baslik.description ? (
-              <div style={{ color: t.dim, fontSize: 15, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{baslik.description}</div>
+              (() => {
+                // Mobilde uzun açıklama 6 satıra kırpılır + "Daha fazla/az" (rating'i aşağı itmesin)
+                const uzun = dar && baslik.description.length > 200;
+                const kapali = uzun && !aciklamaAcik;
+                return (
+                  <>
+                    <div
+                      style={{
+                        color: t.dim,
+                        fontSize: 15,
+                        lineHeight: 1.75,
+                        whiteSpace: "pre-wrap",
+                        ...(kapali ? { display: "-webkit-box", WebkitLineClamp: 6, WebkitBoxOrient: "vertical", overflow: "hidden" } : {}),
+                      }}
+                    >
+                      {baslik.description}
+                    </div>
+                    {uzun && (
+                      <button onClick={() => setAciklamaAcik((v) => !v)} style={{ background: "none", border: "none", color: t.text, fontSize: 13, fontWeight: 600, padding: "8px 0 0", cursor: "pointer" }}>
+                        {aciklamaAcik ? s.kesfet.dahaAz : s.kesfet.dahaFazla}
+                      </button>
+                    )}
+                  </>
+                );
+              })()
             ) : (
               <div style={{ color: t.dim, fontSize: 14 }}>—</div>
             )}
             <MetaSatir video={video} baslik={baslik} />
           </div>
-          <div style={{ flex: "1 1 260px", minWidth: 0, maxWidth: 360 }}>
+          <div style={{ flex: dar ? "1 1 100%" : "1 1 260px", minWidth: 0, maxWidth: dar ? "none" : 360, width: dar ? "100%" : "auto" }}>
             <PuanKontrol video={video} user={user} girisAc={girisAc}>
               {forumAc && (
                 <button
                   onClick={() => forumAc(baslik.id, video.id, baslik.name, video.name || s.genel.bolumNo(video.episode ?? 1))}
-                  style={{ width: "100%", background: "none", border: `1px solid ${t.accent}`, borderRadius: 999, color: t.accent, padding: "12px 20px", fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, cursor: "pointer" }}
+                  style={{ width: "100%", background: "none", border: `1px solid ${t.accent}`, borderRadius: 999, color: t.accent, padding: dar ? "14px 20px" : "12px 20px", fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, cursor: "pointer" }}
                 >
                   💬 {baslik.kind === "dizi" ? s.forum.bolumBaslik : s.forum.baslik}
                   {sohbetSayi != null ? ` (${sohbetSayi})` : ""}
@@ -1655,7 +1689,7 @@ function MetaSatir({ video, baslik }) {
   );
 }
 
-const yuvarlakBtn = { height: 42, minWidth: 42, background: "none", border: `1px solid ${t.line}`, borderRadius: 999, color: t.text, fontSize: 16, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box" };
+const yuvarlakBtn = { height: 44, minWidth: 44, background: "none", border: `1px solid ${t.line}`, borderRadius: 999, color: t.text, fontSize: 16, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box" };
 const menuOge2 = { background: "none", border: "none", color: t.text, textAlign: "left", padding: "10px 14px", fontSize: 13, cursor: "pointer", width: "100%" };
 
 // ————— Video halk oylaması (1–10) — aggregate göster + optimistik oy —————
@@ -1682,6 +1716,7 @@ function PuanKontrol({ video, user, girisAc, children }) {
   }
 
   const p10 = s.kesfet.puanlama;
+  const dar = usePencereGen() < 480; // mobil: 1-10 butonları 5x2 grid (taşma/küçük-hedef yerine)
   return (
     <div>
       {/* Puan ver  <ortalama> / 10  (Image 4: ortalama accent + büyük) */}
@@ -1692,7 +1727,15 @@ function PuanKontrol({ video, user, girisAc, children }) {
           <span style={{ color: t.dim }}> / 10</span>
         </span>
       </div>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: children ? 18 : 0 }}>
+      {/* Mobil: 5x2 grid (dokunma-dostu 48px); desktop: tek sıra 38px (değişmedi) */}
+      <div
+        style={{
+          display: dar ? "grid" : "flex",
+          ...(dar ? { gridTemplateColumns: "repeat(5, 1fr)" } : { flexWrap: "wrap" }),
+          gap: dar ? 8 : 6,
+          marginBottom: children ? (dar ? 20 : 18) : 0,
+        }}
+      >
         {Array.from({ length: 10 }, (_, i) => i + 1).map((p) => {
           const secili = ozet.benim === p;
           return (
@@ -1701,13 +1744,13 @@ function PuanKontrol({ video, user, girisAc, children }) {
               onClick={() => oyla(p)}
               title={!user ? p10.giris : undefined}
               style={{
-                width: 38,
-                height: 38,
-                borderRadius: 8,
-                background: secili ? t.gradient : "none",
+                width: dar ? "100%" : 38,
+                height: dar ? 48 : 38,
+                borderRadius: dar ? 10 : 8,
+                background: secili ? t.gradient : dar ? t.surface : "none",
                 color: secili ? "#0A0A0B" : t.text,
                 border: `1px solid ${secili ? t.accent : t.line}`,
-                fontSize: 14,
+                fontSize: dar ? 16 : 14,
                 fontWeight: 700,
                 cursor: "pointer",
               }}
