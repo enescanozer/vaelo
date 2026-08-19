@@ -3,7 +3,7 @@
 // oynatıcı = video üstte sabit, altında kaydırılabilir bilgi + bölüm listesi;
 // arama = yazarken anında, ada göre akıllı sıralı, kapak+açıklamalı zengin satırlar.
 // Dil: varsayılan İngilizce, başlıktaki anahtar döngüsel (sözlük: mobil/i18n.js).
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -408,7 +408,6 @@ export default function App() {
       {gorunum.tip === "detay" && (
         <Detay
           d={d}
-          dil={dil}
           id={gorunum.id}
           user={user}
           girisAc={() => setGirisAcik(true)}
@@ -426,7 +425,7 @@ export default function App() {
           altyaziDil={ayarlar.altyaziAcik ? ayarlar.altyaziDil || dil : ""}
           oynat={oynat}
           girisAc={() => setGirisAcik(true)}
-          geri={() => setGorunum({ tip: "detay", id: gorunum.baslik.id })}
+          geri={() => setGorunum({ tip: "ana" })}
         />
       )}
       {girisAcik && <AuthModal d={d} kapat={() => setGirisAcik(false)} />}
@@ -1446,173 +1445,81 @@ function SonucSatiri({ d, baslik, ac }) {
   );
 }
 
-// ————— Detay: bilgi + Listeme ekle + bölümler —————
-function Detay({ d, dil, id, user, girisAc, oynat, geri }) {
-  const [baslik, setBaslik] = useState(null);
+// ————— Detay: web akışı (96375ed) mobil karşılığı — artık YÜKLEYİCİ —————
+// Kart/deep-link → başlık gelince DOĞRUDAN oynatıcı (tek adım; ikinci "Filmi izle" tıkı yok).
+// Tüm meta/aksiyonlar (üretici, Listem, kurucu rozeti, puan, açıklama, bölümler, BTS, Topluluk)
+// artık Oynatici'de — web'deki tek-sayfa oynatıcı düzeniyle aynı.
+function Detay({ d, id, user, girisAc, oynat, geri }) {
   const [hata, setHata] = useState(null);
-  const [ekli, setEkli] = useState(null); // null: bilinmiyor
-  const [uretici, setUretici] = useState(null); // üretici kartı (ad + sosyal)
-  const [sohbetAcik, setSohbetAcik] = useState(false); // Topluluk modalı (başlık düzeyi oda)
-
   useEffect(() => {
-    setUretici(null);
+    let aktif = true;
     getTitle(id)
       .then((b) => {
-        setBaslik(b);
-        if (b?.creator_id) getUreticiProfil(b.creator_id).then(setUretici);
+        if (!aktif) return;
+        const ilk = b?.videos?.[0] || b?.yapimlar?.[0];
+        if (ilk) oynat(ilk, b); // → { tip: "oynat" }; Detay bu render'da yükleyici kalır
+        else setHata(d.bosSonuc || "—");
       })
-      .catch((e) => setHata(e.message));
-    if (user) inMyList(user.id, id).then(setEkli);
-    else setEkli(null);
-  }, [id, user?.id]);
-
-  async function listemDegistir() {
-    if (!user) return girisAc();
-    setEkli(!ekli); // iyimser
-    await toggleMyList(user.id, id, ekli);
-  }
+      .catch((e) => aktif && setHata(e.message));
+    return () => { aktif = false; };
+  }, [id]);
 
   if (hata) return <Durum d={d} mesaj={hata} geri={geri} />;
-  if (!baslik) return <Durum d={d} yukleniyor geri={geri} />;
-
-  const dizi = baslik.kind === "dizi";
-
-  return (
-    <>
-    <ScrollView style={s.kap} contentContainerStyle={{ padding: 16, paddingBottom: 48 }}>
-      <GeriButon d={d} geri={geri} />
-      <Text style={[s.ustBilgi, { marginTop: 16 }]}>
-        {[dizi ? d.DIZI : d.FILM, baslik.genre, baslik.year].filter(Boolean).join(" · ")}
-      </Text>
-      <Text style={s.detayAd}>{baslik.name}</Text>
-      {!!baslik.description && (
-        <Text style={[s.dim, { lineHeight: 21, marginBottom: 20 }]}>{baslik.description}</Text>
-      )}
-
-      {/* Kurucu Ekip etiketi (şeffaflık) */}
-      {baslik.kurucu_icerigi && (
-        <View style={s.kurucuRozet}>
-          <Gradyan />
-          <Text style={s.kurucuRozetYazi}>{d.kurucuEkip}</Text>
-        </View>
-      )}
-
-      {/* Üretici: ad + (varsa) sosyal linkler — profil bazlı */}
-      {uretici && (uretici.display_name || uretici.bio ||
-        [uretici.instagram, uretici.tiktok, uretici.youtube, uretici.twitter, uretici.website].some(Boolean)) && (
-        <View style={{ marginBottom: 20 }}>
-          <Text style={[s.dim, { fontSize: 12, marginBottom: 6 }]}>{d.uretici}</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-            <Text style={{ color: t.text, fontSize: 15, fontWeight: "700" }}>
-              {uretici.display_name || d.uretici}
-            </Text>
-            {[
-              ["instagram", "Instagram", uretici.instagram],
-              ["tiktok", "TikTok", uretici.tiktok],
-              ["youtube", "YouTube", uretici.youtube],
-              ["twitter", "X", uretici.twitter],
-              ["website", d.website, uretici.website],
-            ].map(([p, etiket, ham]) => {
-              const url = sosyalUrl(p, ham);
-              if (!url) return null;
-              return (
-                <TouchableOpacity key={p} onPress={() => Linking.openURL(url)} style={s.sosyalPill}>
-                  <Text style={s.sosyalPillYazi}>{etiket}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-          {!!uretici.bio && (
-            <Text style={[s.dim, { fontSize: 13, marginTop: 8, lineHeight: 19 }]}>{uretici.bio}</Text>
-          )}
-        </View>
-      )}
-
-      <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-        {!dizi && baslik.videos[0] && (
-          <TouchableOpacity
-            style={s.izleDugme}
-            onPress={() => {
-              dokunOrta();
-              oynat(baslik.videos[0], baslik);
-            }}
-          >
-            <Gradyan />
-            <Text style={s.izleYazi}>{d.filmiIzle}</Text>
-          </TouchableOpacity>
-        )}
-        {(user ? ekli !== null : true) && (
-          <TouchableOpacity style={s.listemDugme} onPress={listemDegistir}>
-            <Text style={{ color: ekli ? t.dim : t.text, fontSize: 14, fontWeight: "600" }}>
-              {ekli ? d.listemde : d.listemeEkle}
-            </Text>
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity style={s.listemDugme} onPress={() => setSohbetAcik(true)}>
-          <Text style={{ color: t.text, fontSize: 14, fontWeight: "600" }}>💬 {d.sohbet.baslik}</Text>
-        </TouchableOpacity>
-      </View>
-
-      {dizi &&
-        baslik.videos.map((video) => (
-          <TouchableOpacity
-            key={video.id}
-            style={s.bolumSatiri}
-            onPress={() => {
-              dokunHafif();
-              oynat(video, baslik);
-            }}
-            activeOpacity={0.85}
-          >
-            <Text style={[s.dim, { width: 52 }]}>
-              {d.seb(video.season ?? 1, video.episode ?? 1)}
-            </Text>
-            <Text style={s.bolumAd} numberOfLines={1}>
-              {video.name || d.bolumNo(video.episode ?? 1)}
-            </Text>
-            <Text style={s.dim}>▶</Text>
-          </TouchableOpacity>
-        ))}
-
-      {/* Yapım Süreci (BTS) — ana bölümlerden ayrı, çapraz bağlı (M3) */}
-      {baslik.yapimlar?.length > 0 && (
-        <View style={{ marginTop: 24 }}>
-          <Text style={s.rafBaslik}>{d.yapimSureci}</Text>
-          {baslik.yapimlar.map((video) => (
-            <TouchableOpacity
-              key={video.id}
-              style={s.bolumSatiri}
-              onPress={() => {
-                dokunHafif();
-                oynat(video, baslik);
-              }}
-              activeOpacity={0.85}
-            >
-              <Text style={[s.dim, { width: 52, textAlign: "center" }]}>🎬</Text>
-              <Text style={s.bolumAd} numberOfLines={1}>
-                {video.name || d.yapimSureci}
-              </Text>
-              <Text style={s.dim}>▶</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-    </ScrollView>
-    <Topluluk
-      d={d} dil={dil} oda={`title:${id}`} user={user}
-      girisAc={girisAc} gorunur={sohbetAcik} kapat={() => setSohbetAcik(false)}
-    />
-    </>
-  );
+  return <Durum d={d} yukleniyor geri={geri} />;
 }
 
 // ————— Oynatıcı: YouTube düzeni — video üstte sabit, altı kaydırılabilir —————
+// Video yüzeyi — YALNIZ videoId/cfUid/altyaziDil'e bağlı memoize edilmiş WebView.
+// Böylece Oynatici'nin diğer state'leri (Topluluk modalı, puan, üretici/Listem yüklemesi)
+// değişince WebView YENİDEN OLUŞMAZ/DURMAZ. Yalnız videoId değişince remount (bölüm geçişi).
+const VideoOynatici = memo(function VideoOynatici({ videoId, cfUid, altyaziDil }) {
+  const source = useMemo(
+    () => (cfUid ? { uri: iframeUrl(cfUid, altyaziDil) } : { html: testOynaticiHtml(TEST_HLS) }),
+    [cfUid, altyaziDil]
+  );
+  return (
+    <View style={{ aspectRatio: 16 / 9, backgroundColor: "#000" }}>
+      <WebView
+        key={videoId}
+        source={source}
+        originWhitelist={["*"]}
+        style={{ backgroundColor: "#000" }}
+        allowsFullscreenVideo
+        allowsInlineMediaPlayback
+        mediaPlaybackRequiresUserAction={false}
+      />
+    </View>
+  );
+});
+
 function Oynatici({ d, dil, video, baslik, user, altyaziDil, oynat, geri, girisAc }) {
   const [sohbetAcik, setSohbetAcik] = useState(false); // Topluluk modalı (bölüm düzeyi oda)
+  const [ekli, setEkli] = useState(null); // Listem: null bilinmiyor (Detay'dan taşındı)
+  const [uretici, setUretici] = useState(null); // üretici kartı: ad + sosyal (Detay'dan taşındı)
   // Açılışta izlenme kaydı (girişliyse user_id ile → "devam et"; bölüm değişince yenisi)
   useEffect(() => {
     logWatch(video.id, user?.id ?? null);
   }, [video.id]);
+  // Üretici + Listem: BAŞLIĞA bağlı (bölüm değişince gereksiz yeniden istek yok)
+  useEffect(() => {
+    let aktif = true;
+    setUretici(null);
+    if (baslik?.creator_id) getUreticiProfil(baslik.creator_id).then((u) => aktif && setUretici(u));
+    return () => { aktif = false; };
+  }, [baslik?.creator_id]);
+  useEffect(() => {
+    let aktif = true;
+    setEkli(null);
+    if (user) inMyList(user.id, baslik.id).then((e) => aktif && setEkli(e));
+    return () => { aktif = false; };
+  }, [user?.id, baslik.id]);
+
+  async function listemDegistir() {
+    if (!user) return girisAc();
+    if (ekli === null) return;
+    setEkli(!ekli); // iyimser
+    await toggleMyList(user.id, baslik.id, ekli);
+  }
 
   const dizi = baslik.kind === "dizi";
 
@@ -1623,23 +1530,8 @@ function Oynatici({ d, dil, video, baslik, user, altyaziDil, oynat, geri, girisA
         <Text style={s.dim}>{d.geri}</Text>
       </TouchableOpacity>
 
-      {/* Video en üstte, tam genişlik, sabit.
-          cf_uid varsa CF Stream iframe; yoksa (demo) STEP 1 ücretsiz test HLS. */}
-      <View style={{ aspectRatio: 16 / 9, backgroundColor: "#000" }}>
-        <WebView
-          key={video.id}
-          source={
-            video.cf_uid
-              ? { uri: iframeUrl(video.cf_uid, altyaziDil) }
-              : { html: testOynaticiHtml(TEST_HLS) }
-          }
-          originWhitelist={["*"]}
-          style={{ backgroundColor: "#000" }}
-          allowsFullscreenVideo
-          allowsInlineMediaPlayback
-          mediaPlaybackRequiresUserAction={false}
-        />
-      </View>
+      {/* Video en üstte, tam genişlik, sabit — memoize (modal/puan/üretici değişince reload YOK) */}
+      <VideoOynatici videoId={video.id} cfUid={video.cf_uid} altyaziDil={altyaziDil} />
 
       {/* Altta kaydırılabilir bilgi + bölümler */}
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 48 }}>
@@ -1656,13 +1548,58 @@ function Oynatici({ d, dil, video, baslik, user, altyaziDil, oynat, geri, girisA
             .join(" · ")}
         </Text>
 
-        {/* Topluluk (canlı sohbet) — bölüm düzeyi oda; Modal overlay → video durmaz */}
-        <TouchableOpacity
-          style={[s.listemDugme, { alignSelf: "flex-start", marginTop: 14 }]}
-          onPress={() => setSohbetAcik(true)}
-        >
-          <Text style={{ color: t.text, fontSize: 14, fontWeight: "600" }}>💬 {d.sohbet.baslik}</Text>
-        </TouchableOpacity>
+        {/* Aksiyon satırı: Listem + Topluluk (Modal overlay → video durmaz) */}
+        <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap", alignItems: "center", marginTop: 14 }}>
+          {(user ? ekli !== null : true) && (
+            <TouchableOpacity style={s.listemDugme} onPress={listemDegistir}>
+              <Text style={{ color: ekli ? t.dim : t.text, fontSize: 14, fontWeight: "600" }}>
+                {ekli ? d.listemde : d.listemeEkle}
+              </Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={s.listemDugme} onPress={() => setSohbetAcik(true)}>
+            <Text style={{ color: t.text, fontSize: 14, fontWeight: "600" }}>💬 {d.sohbet.baslik}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Kurucu Ekip etiketi (şeffaflık) — Detay'dan taşındı */}
+        {baslik.kurucu_icerigi && (
+          <View style={[s.kurucuRozet, { marginTop: 14 }]}>
+            <Gradyan />
+            <Text style={s.kurucuRozetYazi}>{d.kurucuEkip}</Text>
+          </View>
+        )}
+
+        {/* Üretici: ad + (varsa) sosyal linkler — Detay'dan taşındı */}
+        {uretici && (uretici.display_name || uretici.bio ||
+          [uretici.instagram, uretici.tiktok, uretici.youtube, uretici.twitter, uretici.website].some(Boolean)) && (
+          <View style={{ marginTop: 18 }}>
+            <Text style={[s.dim, { fontSize: 12, marginBottom: 6 }]}>{d.uretici}</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+              <Text style={{ color: t.text, fontSize: 15, fontWeight: "700" }}>
+                {uretici.display_name || d.uretici}
+              </Text>
+              {[
+                ["instagram", "Instagram", uretici.instagram],
+                ["tiktok", "TikTok", uretici.tiktok],
+                ["youtube", "YouTube", uretici.youtube],
+                ["twitter", "X", uretici.twitter],
+                ["website", d.website, uretici.website],
+              ].map(([p, etiket, ham]) => {
+                const url = sosyalUrl(p, ham);
+                if (!url) return null;
+                return (
+                  <TouchableOpacity key={p} onPress={() => Linking.openURL(url)} style={s.sosyalPill}>
+                    <Text style={s.sosyalPillYazi}>{etiket}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {!!uretici.bio && (
+              <Text style={[s.dim, { fontSize: 13, marginTop: 8, lineHeight: 19 }]}>{uretici.bio}</Text>
+            )}
+          </View>
+        )}
 
         {/* 1–10 halk oylaması — player'ın hemen altında, açıklamanın üstünde */}
         <MobilPuan video={video} user={user} girisAc={girisAc} d={d} />
@@ -1697,6 +1634,30 @@ function Oynatici({ d, dil, video, baslik, user, altyaziDil, oynat, geri, girisA
               );
             })}
           </>
+        )}
+
+        {/* Yapım Süreci (BTS) — ana bölümlerden ayrı, çapraz bağlı (M3) — Detay'dan taşındı */}
+        {baslik.yapimlar?.length > 0 && (
+          <View style={{ marginTop: 24 }}>
+            <Text style={s.altBaslik}>{d.yapimSureci}</Text>
+            {baslik.yapimlar.map((b) => {
+              const caliyor = b.id === video.id;
+              return (
+                <TouchableOpacity
+                  key={b.id}
+                  style={[s.bolumSatiri, caliyor && { borderColor: t.accent }]}
+                  onPress={() => !caliyor && oynat(b, baslik)}
+                  activeOpacity={caliyor ? 1 : 0.85}
+                >
+                  <Text style={[s.dim, { width: 52, textAlign: "center" }, caliyor && { color: t.accent }]}>🎬</Text>
+                  <Text style={s.bolumAd} numberOfLines={1}>
+                    {b.name || d.yapimSureci}
+                  </Text>
+                  <Text style={[s.dim, caliyor && { color: t.accent }]}>▶</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         )}
       </ScrollView>
 
