@@ -309,3 +309,67 @@ export async function getContinueWatching(userId) {
   }
   return sonuc;
 }
+
+// ————— CANLI SOHBET (Topluluk) — web ile AYNI backend: sohbet_* RPC/action/tablo —————
+// oda: 'ep:<video_id>' (bölüm) | 'title:<title_id>' (film/dizi geneli).
+// Yazma YALNIZ forum-post 'sohbet'/'sohbet_duzenle' action'ından (moderasyon FAIL-CLOSED içeride).
+
+// forum-post çağrısı (oturum token'ı otomatik geçer). Dönüş: { ok, mesaj } | { hata, kod }
+async function forumYaz(body) {
+  const { data, error } = await supabase.functions.invoke("forum-post", { body });
+  if (error) {
+    let kod = "sunucu";
+    try {
+      const g = await error.context?.json?.();
+      if (g?.kod) kod = g.kod;
+    } catch {
+      /* gövde JSON değil */
+    }
+    return { hata: true, kod };
+  }
+  if (data?.hata) return { hata: true, kod: data.kod ?? "sunucu" };
+  return { ok: true, ...data };
+}
+
+// İlk yükleme: mesaj + beğeni + reply/mention (sohbet_getir RPC — tek sorgu)
+export async function sohbetGetir(oda, limit = 100) {
+  const { data, error } = await supabase.rpc("sohbet_getir", { p_oda: oda, p_limit: limit });
+  if (error) throw error;
+  return data ?? [];
+}
+export async function sohbetOdaDurum(oda) {
+  const { data } = await supabase.from("sohbet_odalari").select("locked").eq("oda", oda).maybeSingle();
+  return !!data?.locked;
+}
+// Gönder / düzenle (yeni metin moderasyondan geçer). Sil: mevcut RPC.
+export const sohbetGonder = (p) => forumYaz({ action: "sohbet", ...p });
+export const sohbetDuzenle = (p) => forumYaz({ action: "sohbet_duzenle", ...p });
+export const sohbetMesajSil = (id) => supabase.rpc("sohbet_mesaj_sil", { p_id: id });
+// Like (RLS: yalnız kendi; duplicate PK ile engelli; sayım DB'den). oda: realtime filtre için.
+export const sohbetBegen = (mesajId, userId, oda) =>
+  supabase.from("sohbet_begeni").insert({ mesaj_id: mesajId, user_id: userId, oda });
+export const sohbetBegenKaldir = (mesajId, userId) =>
+  supabase.from("sohbet_begeni").delete().eq("mesaj_id", mesajId).eq("user_id", userId);
+// Mention autocomplete (authenticated). → [{ id, display_name }]
+export async function sohbetKullaniciAra(q) {
+  const s = (q || "").trim();
+  if (!s) return [];
+  const { data } = await supabase.rpc("sohbet_kullanici_ara", { p_q: s, p_limit: 6 });
+  return data ?? [];
+}
+// Realtime: mesaj (INSERT/UPDATE) ve beğeni (INSERT/DELETE). abone(...) kanal döner → sohbetAbonelikBirak ile kapat.
+export function sohbetAbone(oda, onInsert, onUpdate, onDurum) {
+  return supabase
+    .channel(`sohbet:${oda}`)
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "sohbet_mesajlari", filter: `oda=eq.${oda}` }, (p) => onInsert && onInsert(p.new))
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sohbet_mesajlari", filter: `oda=eq.${oda}` }, (p) => onUpdate && onUpdate(p.new))
+    .subscribe((status) => onDurum && onDurum(status)); // status: SUBSCRIBED | CHANNEL_ERROR | TIMED_OUT | CLOSED
+}
+export function sohbetBegeniAbone(oda, onDelta) {
+  return supabase
+    .channel(`sohbet_begeni:${oda}`)
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "sohbet_begeni", filter: `oda=eq.${oda}` }, (p) => onDelta && onDelta(p.new.mesaj_id, p.new.user_id, "ekle"))
+    .on("postgres_changes", { event: "DELETE", schema: "public", table: "sohbet_begeni", filter: `oda=eq.${oda}` }, (p) => onDelta && onDelta(p.old.mesaj_id, p.old.user_id, "kaldir"))
+    .subscribe();
+}
+export const sohbetAbonelikBirak = (kanal) => { if (kanal) supabase.removeChannel(kanal); };

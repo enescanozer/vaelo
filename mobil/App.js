@@ -67,6 +67,7 @@ import {
   recoveryOturumuKur,
 } from "./auth";
 import { METINLER } from "./i18n";
+import Topluluk from "./Topluluk";
 
 // Tasarım token'ları — web'deki theme.js ile aynı değerler
 const t = {
@@ -407,6 +408,7 @@ export default function App() {
       {gorunum.tip === "detay" && (
         <Detay
           d={d}
+          dil={dil}
           id={gorunum.id}
           user={user}
           girisAc={() => setGirisAcik(true)}
@@ -417,6 +419,7 @@ export default function App() {
       {gorunum.tip === "oynat" && (
         <Oynatici
           d={d}
+          dil={dil}
           video={gorunum.video}
           baslik={gorunum.baslik}
           user={user}
@@ -1444,11 +1447,12 @@ function SonucSatiri({ d, baslik, ac }) {
 }
 
 // ————— Detay: bilgi + Listeme ekle + bölümler —————
-function Detay({ d, id, user, girisAc, oynat, geri }) {
+function Detay({ d, dil, id, user, girisAc, oynat, geri }) {
   const [baslik, setBaslik] = useState(null);
   const [hata, setHata] = useState(null);
   const [ekli, setEkli] = useState(null); // null: bilinmiyor
   const [uretici, setUretici] = useState(null); // üretici kartı (ad + sosyal)
+  const [sohbetAcik, setSohbetAcik] = useState(false); // Topluluk modalı (başlık düzeyi oda)
 
   useEffect(() => {
     setUretici(null);
@@ -1474,6 +1478,7 @@ function Detay({ d, id, user, girisAc, oynat, geri }) {
   const dizi = baslik.kind === "dizi";
 
   return (
+    <>
     <ScrollView style={s.kap} contentContainerStyle={{ padding: 16, paddingBottom: 48 }}>
       <GeriButon d={d} geri={geri} />
       <Text style={[s.ustBilgi, { marginTop: 16 }]}>
@@ -1543,6 +1548,9 @@ function Detay({ d, id, user, girisAc, oynat, geri }) {
             </Text>
           </TouchableOpacity>
         )}
+        <TouchableOpacity style={s.listemDugme} onPress={() => setSohbetAcik(true)}>
+          <Text style={{ color: t.text, fontSize: 14, fontWeight: "600" }}>💬 {d.sohbet.baslik}</Text>
+        </TouchableOpacity>
       </View>
 
       {dizi &&
@@ -1590,11 +1598,17 @@ function Detay({ d, id, user, girisAc, oynat, geri }) {
         </View>
       )}
     </ScrollView>
+    <Topluluk
+      d={d} dil={dil} oda={`title:${id}`} user={user}
+      girisAc={girisAc} gorunur={sohbetAcik} kapat={() => setSohbetAcik(false)}
+    />
+    </>
   );
 }
 
 // ————— Oynatıcı: YouTube düzeni — video üstte sabit, altı kaydırılabilir —————
-function Oynatici({ d, video, baslik, user, altyaziDil, oynat, geri, girisAc }) {
+function Oynatici({ d, dil, video, baslik, user, altyaziDil, oynat, geri, girisAc }) {
+  const [sohbetAcik, setSohbetAcik] = useState(false); // Topluluk modalı (bölüm düzeyi oda)
   // Açılışta izlenme kaydı (girişliyse user_id ile → "devam et"; bölüm değişince yenisi)
   useEffect(() => {
     logWatch(video.id, user?.id ?? null);
@@ -1642,6 +1656,14 @@ function Oynatici({ d, video, baslik, user, altyaziDil, oynat, geri, girisAc }) 
             .join(" · ")}
         </Text>
 
+        {/* Topluluk (canlı sohbet) — bölüm düzeyi oda; Modal overlay → video durmaz */}
+        <TouchableOpacity
+          style={[s.listemDugme, { alignSelf: "flex-start", marginTop: 14 }]}
+          onPress={() => setSohbetAcik(true)}
+        >
+          <Text style={{ color: t.text, fontSize: 14, fontWeight: "600" }}>💬 {d.sohbet.baslik}</Text>
+        </TouchableOpacity>
+
         {/* 1–10 halk oylaması — player'ın hemen altında, açıklamanın üstünde */}
         <MobilPuan video={video} user={user} girisAc={girisAc} d={d} />
 
@@ -1677,6 +1699,11 @@ function Oynatici({ d, video, baslik, user, altyaziDil, oynat, geri, girisAc }) 
           </>
         )}
       </ScrollView>
+
+      <Topluluk
+        d={d} dil={dil} oda={`ep:${video.id}`} user={user}
+        girisAc={girisAc} gorunur={sohbetAcik} kapat={() => setSohbetAcik(false)}
+      />
     </View>
   );
 }

@@ -3,6 +3,13 @@
 // Not: tercih şimdilik oturumluktur; kalıcılık (AsyncStorage) sonraki adım.
 export const METINLER = {
   en: {
+    sohbet: {
+      baslik: "Community", yer: "Message…", bos: "No messages yet. Start the conversation.",
+      kilit: "Chat is locked.", gonder: "Send", begen: "Like", yanitla: "Reply", yanitliyor: "Replying to",
+      duzenle: "Edit", sil: "Delete", kaydet: "Save", iptal: "Cancel", spoiler: "Spoiler",
+      spoilerGoster: "Spoiler — tap to reveal", giris: "Sign in to participate",
+      hata: { moderasyon: "Your message doesn't meet the community guidelines.", gonderilemedi: "Message can't be posted right now. Please try again shortly.", muted: "You're muted and can't post right now.", banned: "You're banned from the chat.", kilitli: "This chat is locked.", bicim: "The message is empty or too long.", giris: "Please sign in.", yetki: "You can't do that.", sunucu: "Something went wrong. Try again." },
+    },
     ara: "Search films and series…",
     sonuclar: "Search results",
     sonucYok: "No results found.",
@@ -119,6 +126,13 @@ export const METINLER = {
     },
   },
   ru: {
+    sohbet: {
+      baslik: "Сообщество", yer: "Сообщение…", bos: "Сообщений пока нет. Начните разговор.",
+      kilit: "Чат заблокирован.", gonder: "Отправить", begen: "Нравится", yanitla: "Ответить", yanitliyor: "Ответ на",
+      duzenle: "Изменить", sil: "Удалить", kaydet: "Сохранить", iptal: "Отмена", spoiler: "Спойлер",
+      spoilerGoster: "Спойлер — нажмите, чтобы показать", giris: "Войдите, чтобы участвовать",
+      hata: { moderasyon: "Ваше сообщение не соответствует правилам сообщества.", gonderilemedi: "Сейчас нельзя отправить сообщение. Повторите попытку позже.", muted: "Вы в муте и не можете писать.", banned: "Вы забанены в чате.", kilitli: "Этот чат заблокирован.", bicim: "Сообщение пустое или слишком длинное.", giris: "Пожалуйста, войдите.", yetki: "Вы не можете это сделать.", sunucu: "Что-то пошло не так. Повторите." },
+    },
     ara: "Искать фильмы и сериалы…",
     sonuclar: "Результаты поиска",
     sonucYok: "Ничего не найдено.",
@@ -235,6 +249,13 @@ export const METINLER = {
     },
   },
   zh: {
+    sohbet: {
+      baslik: "社区", yer: "消息…", bos: "还没有消息。开始聊天吧。",
+      kilit: "聊天已锁定。", gonder: "发送", begen: "赞", yanitla: "回复", yanitliyor: "回复",
+      duzenle: "编辑", sil: "删除", kaydet: "保存", iptal: "取消", spoiler: "剧透",
+      spoilerGoster: "剧透 — 点按显示", giris: "登录后参与",
+      hata: { moderasyon: "你的消息不符合社区准则。", gonderilemedi: "暂时无法发送消息，请稍后再试。", muted: "你已被禁言，暂时无法发送。", banned: "你已被聊天封禁。", kilitli: "此聊天已锁定。", bicim: "消息为空或过长。", giris: "请登录。", yetki: "你无法执行此操作。", sunucu: "出错了，请重试。" },
+    },
     ara: "搜索电影和剧集…",
     sonuclar: "搜索结果",
     sonucYok: "未找到结果。",
@@ -351,6 +372,13 @@ export const METINLER = {
     },
   },
   ar: {
+    sohbet: {
+      baslik: "المجتمع", yer: "رسالة…", bos: "لا رسائل بعد. ابدأ المحادثة.",
+      kilit: "الدردشة مقفلة.", gonder: "إرسال", begen: "إعجاب", yanitla: "رد", yanitliyor: "رد على",
+      duzenle: "تعديل", sil: "حذف", kaydet: "حفظ", iptal: "إلغاء", spoiler: "حرق",
+      spoilerGoster: "حرق — اضغط للعرض", giris: "سجّل الدخول للمشاركة",
+      hata: { moderasyon: "رسالتك لا تلتزم بإرشادات المجتمع.", gonderilemedi: "تعذّر إرسال الرسالة الآن. حاول بعد قليل.", muted: "أنت مكتوم ولا يمكنك الإرسال الآن.", banned: "أنت محظور من الدردشة.", kilitli: "هذه الدردشة مقفلة.", bicim: "الرسالة فارغة أو طويلة جدًا.", giris: "الرجاء تسجيل الدخول.", yetki: "لا يمكنك فعل ذلك.", sunucu: "حدث خطأ ما. حاول مجددًا." },
+    },
     ara: "ابحث عن أفلام ومسلسلات…",
     sonuclar: "نتائج البحث",
     sonucYok: "لا نتائج.",
@@ -467,6 +495,13 @@ export const METINLER = {
     },
   },
   tr: {
+    sohbet: {
+      baslik: "Topluluk", yer: "Mesaj…", bos: "Henüz mesaj yok. Sohbeti sen başlat.",
+      kilit: "Sohbet kilitli.", gonder: "Gönder", begen: "Beğen", yanitla: "Yanıtla", yanitliyor: "Yanıtlanıyor",
+      duzenle: "Düzenle", sil: "Sil", kaydet: "Kaydet", iptal: "İptal", spoiler: "Spoiler",
+      spoilerGoster: "Spoiler — göstermek için dokun", giris: "Katılmak için giriş yap",
+      hata: { moderasyon: "Mesajın topluluk kurallarına uymuyor.", gonderilemedi: "Mesaj şu anda gönderilemiyor. Lütfen biraz sonra tekrar deneyin.", muted: "Susturuldun, şu anda yazamazsın.", banned: "Sohbetten yasaklandın.", kilitli: "Bu sohbet kilitli.", bicim: "Mesaj boş ya da çok uzun.", giris: "Lütfen giriş yap.", yetki: "Bunu yapamazsın.", sunucu: "Bir şeyler ters gitti. Tekrar dene." },
+    },
     ara: "Film ya da dizi ara…",
     sonuclar: "Arama sonuçları",
     sonucYok: "Sonuç bulunamadı.",
@@ -583,6 +618,13 @@ export const METINLER = {
     },
   },
   es: {
+    sohbet: {
+      baslik: "Comunidad", yer: "Mensaje…", bos: "Aún no hay mensajes. Empieza la conversación.",
+      kilit: "El chat está bloqueado.", gonder: "Enviar", begen: "Me gusta", yanitla: "Responder", yanitliyor: "Respondiendo a",
+      duzenle: "Editar", sil: "Eliminar", kaydet: "Guardar", iptal: "Cancelar", spoiler: "Spoiler",
+      spoilerGoster: "Spoiler — toca para ver", giris: "Inicia sesión para participar",
+      hata: { moderasyon: "Tu mensaje no cumple las normas de la comunidad.", gonderilemedi: "No se puede publicar ahora. Inténtalo de nuevo en un momento.", muted: "Estás silenciado y no puedes publicar ahora.", banned: "Estás baneado del chat.", kilitli: "Este chat está bloqueado.", bicim: "El mensaje está vacío o es demasiado largo.", giris: "Inicia sesión.", yetki: "No puedes hacer eso.", sunucu: "Algo salió mal. Inténtalo de nuevo." },
+    },
     ara: "Busca películas y series…",
     sonuclar: "Resultados de búsqueda",
     sonucYok: "No se encontraron resultados.",
@@ -700,6 +742,13 @@ export const METINLER = {
     },
   },
   de: {
+    sohbet: {
+      baslik: "Community", yer: "Nachricht…", bos: "Noch keine Nachrichten. Starte das Gespräch.",
+      kilit: "Chat ist gesperrt.", gonder: "Senden", begen: "Gefällt mir", yanitla: "Antworten", yanitliyor: "Antwort an",
+      duzenle: "Bearbeiten", sil: "Löschen", kaydet: "Speichern", iptal: "Abbrechen", spoiler: "Spoiler",
+      spoilerGoster: "Spoiler — zum Anzeigen tippen", giris: "Zum Mitmachen anmelden",
+      hata: { moderasyon: "Deine Nachricht entspricht nicht den Community-Richtlinien.", gonderilemedi: "Nachricht kann gerade nicht gesendet werden. Bitte versuche es gleich erneut.", muted: "Du bist stummgeschaltet und kannst gerade nicht schreiben.", banned: "Du bist aus dem Chat verbannt.", kilitli: "Dieser Chat ist gesperrt.", bicim: "Die Nachricht ist leer oder zu lang.", giris: "Bitte melde dich an.", yetki: "Das kannst du nicht tun.", sunucu: "Etwas ist schiefgelaufen. Versuche es erneut." },
+    },
     ara: "Filme und Serien suchen…",
     sonuclar: "Suchergebnisse",
     sonucYok: "Keine Ergebnisse gefunden.",
@@ -817,6 +866,13 @@ export const METINLER = {
     },
   },
   fr: {
+    sohbet: {
+      baslik: "Communauté", yer: "Message…", bos: "Aucun message pour l'instant. Lance la conversation.",
+      kilit: "Le chat est verrouillé.", gonder: "Envoyer", begen: "J'aime", yanitla: "Répondre", yanitliyor: "En réponse à",
+      duzenle: "Modifier", sil: "Supprimer", kaydet: "Enregistrer", iptal: "Annuler", spoiler: "Spoiler",
+      spoilerGoster: "Spoiler — touchez pour afficher", giris: "Connecte-toi pour participer",
+      hata: { moderasyon: "Ton message ne respecte pas les règles de la communauté.", gonderilemedi: "Impossible d'envoyer le message pour le moment. Réessaie bientôt.", muted: "Tu es en sourdine et ne peux pas publier maintenant.", banned: "Tu es banni du chat.", kilitli: "Ce chat est verrouillé.", bicim: "Le message est vide ou trop long.", giris: "Connecte-toi.", yetki: "Tu ne peux pas faire ça.", sunucu: "Une erreur est survenue. Réessaie." },
+    },
     ara: "Rechercher films et séries…",
     sonuclar: "Résultats de recherche",
     sonucYok: "Aucun résultat trouvé.",
