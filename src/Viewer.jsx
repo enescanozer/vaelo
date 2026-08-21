@@ -22,6 +22,7 @@ import {
   getVideoPuan,
   puanVer,
   getUreticiProfil,
+  getUreticiIcerikleri,
   sosyalUrl,
   sohbetSayim,
 } from "./catalog";
@@ -98,7 +99,8 @@ export default function Viewer({ user, istenen, anaSinyal, festivalGit, girisAc 
 
   // gorunum + forum → history.state ({id, forum}) + url (?b=id). detay↔oynat aynı id = aynı sayfa.
   useEffect(() => {
-    const id = gorunum.tip === "ana" ? null : gorunum.tip === "oynat" ? gorunum.baslik.id : gorunum.id;
+    // Üretici profili URL'de ?b= üretmez (b= başlık deep-link'i içindir) → ana gibi id=null.
+    const id = gorunum.tip === "oynat" ? gorunum.baslik.id : gorunum.tip === "detay" ? gorunum.id : null;
     mevcutIdRef.current = id;
     if (popRef.current) { popRef.current = false; return; } // popstate → URL zaten değişti, dokunma
     const url = id ? `?b=${id}` : window.location.pathname;
@@ -135,6 +137,8 @@ export default function Viewer({ user, istenen, anaSinyal, festivalGit, girisAc 
 
   const oynat = (video, baslik, baslangic = 0) =>
     setGorunum({ tip: "oynat", video, baslik, baslangic });
+  // Üretici profil sayfası (Instagram/TikTok tarzı: bio + ürettiği içerikler)
+  const ureticiAc = (creatorId) => creatorId && setGorunum({ tip: "uretici", id: creatorId });
 
   // Aktif görünüm — erken return YOK; forum drawer bunun ÜSTÜNE overlay olarak eklenir.
   let ekran;
@@ -148,6 +152,7 @@ export default function Viewer({ user, istenen, anaSinyal, festivalGit, girisAc 
         oynat={oynat}
         girisAc={girisAc}
         forumAc={forumAc}
+        ureticiAc={ureticiAc}
         geri={() => setGorunum({ tip: "ana" })}
       />
     );
@@ -158,6 +163,14 @@ export default function Viewer({ user, istenen, anaSinyal, festivalGit, girisAc 
         user={user}
         oynat={oynat}
         forumAc={forumAc}
+        geri={() => setGorunum({ tip: "ana" })}
+      />
+    );
+  } else if (gorunum.tip === "uretici") {
+    ekran = (
+      <UreticiProfili
+        id={gorunum.id}
+        ac={(id) => setGorunum({ tip: "detay", id })}
         geri={() => setGorunum({ tip: "ana" })}
       />
     );
@@ -1169,8 +1182,92 @@ function UreticiKarti({ uretici }) {
   );
 }
 
+// ————— Üretici profil sayfası (Instagram/TikTok tarzı): avatar + ad + bio + sosyal + ürettiği içerikler —————
+// Kaynak: public uretici_kartlari + yayınlanmış içerikler (RLS). Kendi profil düzenleme sistemine DOKUNMAZ.
+function UreticiProfili({ id, ac, geri }) {
+  const { s } = useLang();
+  const [uretici, setUretici] = useState(null);
+  const [icerikler, setIcerikler] = useState(null); // null: yükleniyor
+  useEffect(() => {
+    let aktif = true;
+    setUretici(null);
+    setIcerikler(null);
+    getUreticiProfil(id).then((u) => aktif && setUretici(u)).catch(() => {});
+    getUreticiIcerikleri(id).then((v) => aktif && setIcerikler(v)).catch(() => aktif && setIcerikler([]));
+    return () => { aktif = false; };
+  }, [id]);
+
+  const linkler = uretici
+    ? [
+        ["instagram", "Instagram", uretici.instagram],
+        ["tiktok", "TikTok", uretici.tiktok],
+        ["youtube", "YouTube", uretici.youtube],
+        ["twitter", "X", uretici.twitter],
+        ["website", s.kesfet.website, uretici.website],
+      ].filter(([p, , ham]) => sosyalUrl(p, ham))
+    : [];
+
+  return (
+    <div style={{ maxWidth: 1080, margin: "0 auto", padding: `16px ${t.pad} 64px` }}>
+      <div style={{ marginBottom: 14 }}>
+        <GeriButon geri={geri} />
+      </div>
+
+      {/* Başlık: büyük avatar + ad + bio + sosyal */}
+      <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
+        <Avatar ad={uretici?.display_name || "?"} boyut={84} />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ color: t.accent, fontSize: 11, fontWeight: 700, letterSpacing: 0.7, textTransform: "uppercase" }}>
+            {s.kesfet.uretici}
+          </div>
+          <div style={{ fontFamily: t.display, fontWeight: 800, fontSize: "clamp(22px, 4vw, 30px)", marginTop: 2 }}>
+            {uretici?.display_name || s.kesfet.uretici}
+          </div>
+        </div>
+      </div>
+
+      {uretici?.bio && (
+        <div style={{ color: t.dim, fontSize: 15, lineHeight: 1.6, marginTop: 16, whiteSpace: "pre-wrap", maxWidth: 640 }}>
+          {uretici.bio}
+        </div>
+      )}
+
+      {linkler.length > 0 && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 16 }}>
+          {linkler.map(([p, etiket, ham]) => (
+            <a
+              key={p}
+              href={sosyalUrl(p, ham)}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontSize: 12, color: t.text, textDecoration: "none", padding: "7px 14px", border: `1px solid ${t.line}`, borderRadius: 999, background: t.surface }}
+            >
+              {etiket}
+            </a>
+          ))}
+        </div>
+      )}
+
+      {/* Ürettiği içerikler */}
+      <div style={{ borderTop: `1px solid ${t.line}`, marginTop: 28, paddingTop: 24 }}>
+        {icerikler === null ? (
+          <div style={{ color: t.dim }}>{s.genel.yukleniyor}</div>
+        ) : icerikler.length === 0 ? (
+          <div style={{ color: t.dim }}>—</div>
+        ) : (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+            {icerikler.map((b) => (
+              <Kart key={b.id} kart={toCard(b)} ac={ac} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ————— Oynatıcı: sponsor pre-roll → CF iframe + SDK ile gerçek izlenme süresi —————
-function Oynatici({ video, baslik, baslangic = 0, user, oynat, geri, girisAc, forumAc }) {
+function Oynatici({ video, baslik, baslangic = 0, user, oynat, geri, girisAc, forumAc, ureticiAc }) {
   const { s, dil } = useLang();
   const { ayarlar } = useAyarlar();
   const iframeRef = useRef(null);
@@ -1523,12 +1620,19 @@ function Oynatici({ video, baslik, baslangic = 0, user, oynat, geri, girisAc, fo
 
         {/* Üretici satırı — mobilde 2 SIRA (bilgi üstte, aksiyonlar altta sağa hizalı); desktop tek sıra */}
         <div style={{ display: "flex", flexDirection: dar ? "column" : "row", alignItems: dar ? "stretch" : "center", justifyContent: "space-between", gap: dar ? 12 : 16, marginTop: dar ? 16 : 18 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+          {/* Üreticiye tıkla → üretici profil sayfası (bio + ürettiği içerikler) */}
+          <button
+            type="button"
+            onClick={() => baslik.creator_id && ureticiAc?.(baslik.creator_id)}
+            disabled={!baslik.creator_id}
+            title={uretici?.display_name || s.kesfet.uretici}
+            style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, background: "none", border: "none", padding: 0, textAlign: "left", cursor: baslik.creator_id ? "pointer" : "default", color: "inherit" }}
+          >
             <Avatar ad={uretici?.display_name || baslik.name} boyut={dar ? 40 : 44} />
             <div style={{ fontWeight: 700, fontSize: 15, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {uretici?.display_name || s.kesfet.uretici}
             </div>
-          </div>
+          </button>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, justifyContent: dar ? "flex-end" : "flex-start" }}>
             <button
               onClick={listemDegistir}

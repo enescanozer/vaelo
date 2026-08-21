@@ -54,7 +54,11 @@ import {
   getVideoPuan,
   puanVer,
   getUreticiProfil,
+  getUreticiIcerikleri,
   sosyalUrl,
+  profilGetir,
+  takmaAdAyarla,
+  profilGuncelle,
 } from "./api";
 import {
   useAuth,
@@ -116,6 +120,7 @@ function Gradyan() {
 const SEKME_TANIM = [
   { id: "home", ikon: "home-outline", aktifIkon: "home", et: "navHome" },
   { id: "discover", ikon: "search-outline", aktifIkon: "search", et: "navDiscover" },
+  { id: "sanat", ikon: "color-palette-outline", aktifIkon: "color-palette", et: "navArt" },
   { id: "upload", ikon: "cloud-upload-outline", aktifIkon: "cloud-upload", et: "navUpload" },
   { id: "studio", ikon: "film-outline", aktifIkon: "film", et: "navStudio" },
   { id: "profile", ikon: "person-outline", aktifIkon: "person", et: "navProfile" },
@@ -184,14 +189,62 @@ function ProfilEkrani({ d, user, dil, setDil, ayarlar, setAyarlar, girisAc }) {
     en: "English", tr: "Türkçe", es: "Español", de: "Deutsch", fr: "Français",
     ru: "Русский", ar: "العربية", zh: "中文",
   };
+  const p = d.profil;
   const Satir = ({ etiket, secili, sec }) => (
     <TouchableOpacity style={s.secimSatiri} onPress={sec} activeOpacity={0.8}>
       <Text style={{ color: t.text, fontSize: 14 }}>{etiket}</Text>
       {secili && <Text style={{ color: t.accent, fontSize: 16 }}>✓</Text>}
     </TouchableOpacity>
   );
+
+  // Profil düzenleme (ad + bio + sosyal) — web Profile.jsx ile AYNI backend (set-nickname + profiles)
+  const [profil, setProfil] = useState(null);
+  const [ad, setAd] = useState("");
+  const [bio, setBio] = useState("");
+  const [sosyal, setSosyal] = useState({ instagram: "", tiktok: "", youtube: "", twitter: "", website: "" });
+  const [kayd, setKayd] = useState(null); // null | "kaydediliyor" | "oldu"
+  const [pHata, setPHata] = useState(null);
+  useEffect(() => {
+    if (!user) { setProfil(null); return; }
+    let aktif = true;
+    profilGetir(user.id).then((pr) => {
+      if (!aktif) return;
+      setProfil(pr);
+      setAd(pr.display_name ?? "");
+      setBio(pr.bio ?? "");
+      setSosyal({ instagram: pr.instagram ?? "", tiktok: pr.tiktok ?? "", youtube: pr.youtube ?? "", twitter: pr.twitter ?? "", website: pr.website ?? "" });
+    }).catch(() => {});
+    return () => { aktif = false; };
+  }, [user?.id]);
+  const uretici = profil?.role === "creator" || profil?.role === "admin";
+  const alan = { backgroundColor: t.surface2, borderWidth: 1, borderColor: t.line, borderRadius: 10, color: t.text, fontSize: 14, paddingHorizontal: 12, paddingVertical: 10, marginTop: 6 };
+
+  async function kaydet() {
+    if (!user || kayd === "kaydediliyor") return;
+    setKayd("kaydediliyor"); setPHata(null);
+    const yeniAd = ad.trim();
+    // Ad değiştiyse ya da hiç seçilmemişse: doğrulama+moderasyon+tekillik (set-nickname)
+    if (yeniAd !== (profil?.display_name ?? "") || !profil?.display_name_chosen) {
+      const r = await takmaAdAyarla(yeniAd, (dil || "en").slice(0, 2));
+      if (r.hata) { setKayd(null); setPHata(p.hata[r.kod] ?? p.hata.sunucu); return; }
+    }
+    // Bio + sosyal yalnız üretici/admin (izleyicide anlamı yok) — self-update
+    if (uretici) {
+      const bosNull = (x) => { const v = (x || "").trim(); return v || null; };
+      try {
+        await profilGuncelle(user.id, {
+          bio: bosNull(bio),
+          instagram: bosNull(sosyal.instagram), tiktok: bosNull(sosyal.tiktok),
+          youtube: bosNull(sosyal.youtube), twitter: bosNull(sosyal.twitter), website: bosNull(sosyal.website),
+        });
+      } catch { setKayd(null); setPHata(p.hata.sunucu); return; }
+    }
+    setProfil((e) => ({ ...(e || {}), display_name: yeniAd, display_name_chosen: true }));
+    setKayd("oldu");
+  }
+
   return (
-    <ScrollView style={s.kap} contentContainerStyle={{ padding: 16, paddingBottom: 130 }}>
+    <ScrollView style={s.kap} contentContainerStyle={{ padding: 16, paddingBottom: 130 }} keyboardShouldPersistTaps="handled">
       <ExpoImage
         source={require("./assets/vaelo_horizontal_lockup_transparent.png")}
         style={{ height: 24, width: 77, marginBottom: 18 }}
@@ -201,13 +254,37 @@ function ProfilEkrani({ d, user, dil, setDil, ayarlar, setAyarlar, girisAc }) {
       {user ? (
         <>
           <Text style={{ color: t.text, fontSize: 17, fontWeight: "700" }}>{user.email}</Text>
-          <TouchableOpacity
-            style={[s.izleDugme, { alignSelf: "flex-start", marginTop: 12 }]}
-            onPress={() => signOut()}
-          >
-            <Gradyan />
-            <Text style={s.izleYazi}>{d.cikis}</Text>
-          </TouchableOpacity>
+
+          {/* Görünen ad — herkes */}
+          <Text style={s.ayarBolum}>{p.gorunenAd}</Text>
+          <TextInput value={ad} onChangeText={(x) => { setAd(x); setKayd(null); }} style={alan}
+            placeholder={p.gorunenAd} placeholderTextColor={t.dim} autoCapitalize="none" maxLength={20} />
+
+          {/* Bio + sosyal — yalnız üretici/admin */}
+          {uretici && (
+            <>
+              <Text style={s.ayarBolum}>{p.bio}</Text>
+              <TextInput value={bio} onChangeText={(x) => { setBio(x); setKayd(null); }}
+                style={[alan, { minHeight: 72, textAlignVertical: "top" }]} multiline maxLength={300}
+                placeholder={p.bio} placeholderTextColor={t.dim} />
+              <Text style={s.ayarBolum}>{p.sosyal}</Text>
+              {[["instagram", "Instagram"], ["tiktok", "TikTok"], ["youtube", "YouTube"], ["twitter", "X"], ["website", d.website]].map(([k, lbl]) => (
+                <TextInput key={k} value={sosyal[k]} onChangeText={(x) => { setSosyal((sc) => ({ ...sc, [k]: x })); setKayd(null); }}
+                  style={alan} placeholder={lbl} placeholderTextColor={t.dim} autoCapitalize="none" autoCorrect={false} />
+              ))}
+            </>
+          )}
+
+          {pHata && <Text style={{ color: t.danger, fontSize: 13, marginTop: 10 }}>{pHata}</Text>}
+          <View style={{ flexDirection: "row", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
+            <TouchableOpacity style={[s.izleDugme, { opacity: kayd === "kaydediliyor" ? 0.6 : 1 }]} onPress={kaydet} disabled={kayd === "kaydediliyor"}>
+              <Gradyan />
+              <Text style={s.izleYazi}>{kayd === "oldu" ? p.kaydedildi : p.kaydet}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.listemDugme} onPress={() => signOut()}>
+              <Text style={{ color: t.dim, fontSize: 14, fontWeight: "600" }}>{d.cikis}</Text>
+            </TouchableOpacity>
+          </View>
         </>
       ) : (
         <>
@@ -352,6 +429,8 @@ export default function App() {
   }, []);
 
   const oynat = (video, baslik) => setGorunum({ tip: "oynat", video, baslik });
+  // Üretici profil sayfası (Instagram/TikTok tarzı: bio + ürettiği içerikler)
+  const ureticiAc = (creatorId) => creatorId && setGorunum({ tip: "uretici", id: creatorId });
 
   return (
     <SafeAreaProvider>
@@ -365,13 +444,13 @@ export default function App() {
               user={user}
               girisAc={() => setGirisAcik(true)}
               ayarlarAc={() => setAyarlarAcik(true)}
-              tabloAc={() => setGorunum({ tip: "tablo" })}
+              tabloAc={() => setSekme("sanat")}
               oynat={oynat}
               ac={(id) => setGorunum({ tip: "detay", id })}
               aramaOdak={sekme === "discover"}
               festivalGit={(hedef) => {
-                // sanat → Tablo (tam ekran); film → giriş yoksa çağır, varsa Upload sekmesi
-                if (hedef === "art") return setGorunum({ tip: "tablo" });
+                // sanat → Sanat sekmesi; film → giriş yoksa çağır, varsa Upload sekmesi
+                if (hedef === "art") return setSekme("sanat");
                 if (!user) return setGirisAcik(true);
                 setSekme("upload");
               }}
@@ -379,6 +458,9 @@ export default function App() {
           )}
           {sekme === "upload" && (
             <Gecit d={d} tip="upload" user={user} girisAc={() => setGirisAcik(true)} />
+          )}
+          {sekme === "sanat" && (
+            <Tablo d={d} user={user} girisAc={() => setGirisAcik(true)} sekmeModu />
           )}
           {sekme === "studio" && (
             <Gecit d={d} tip="studio" user={user} girisAc={() => setGirisAcik(true)} />
@@ -425,6 +507,15 @@ export default function App() {
           altyaziDil={ayarlar.altyaziAcik ? ayarlar.altyaziDil || dil : ""}
           oynat={oynat}
           girisAc={() => setGirisAcik(true)}
+          ureticiAc={ureticiAc}
+          geri={() => setGorunum({ tip: "ana" })}
+        />
+      )}
+      {gorunum.tip === "uretici" && (
+        <UreticiProfili
+          d={d}
+          id={gorunum.id}
+          ac={(id) => setGorunum({ tip: "detay", id })}
           geri={() => setGorunum({ tip: "ana" })}
         />
       )}
@@ -895,9 +986,12 @@ function MobilFestival({ d, banner, git, tabloAc, ayarlarAc, user, girisAc, buHa
           <TouchableOpacity style={s.dilDugme} onPress={ayarlarAc}>
             <Text style={[s.dilYazi, { fontSize: 15 }]}>⚙</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.dilDugme} onPress={() => (user ? signOut() : girisAc())}>
-            <Text style={s.dilYazi}>{user ? d.cikis : d.girisYap}</Text>
-          </TouchableOpacity>
+          {/* Header'da yalnız GİRİŞ; çıkış artık sadece Profil sekmesinde */}
+          {!user && (
+            <TouchableOpacity style={s.dilDugme} onPress={girisAc}>
+              <Text style={s.dilYazi}>{d.girisYap}</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -1148,14 +1242,17 @@ function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac, aramaOdak, festi
         >
           <Text style={[s.dilYazi, { fontSize: 15 }]}>⚙</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={s.dilDugme}
-          onPress={() => (user ? signOut() : girisAc())}
-          accessibilityRole="button"
-          accessibilityLabel={user ? d.cikis : d.girisYap}
-        >
-          <Text style={s.dilYazi}>{user ? d.cikis : d.girisYap}</Text>
-        </TouchableOpacity>
+        {/* Header'da yalnız GİRİŞ; çıkış artık sadece Profil sekmesinde */}
+        {!user && (
+          <TouchableOpacity
+            style={s.dilDugme}
+            onPress={girisAc}
+            accessibilityRole="button"
+            accessibilityLabel={d.girisYap}
+          >
+            <Text style={s.dilYazi}>{d.girisYap}</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -1468,6 +1565,74 @@ function Detay({ d, id, user, girisAc, oynat, geri }) {
   return <Durum d={d} yukleniyor geri={geri} />;
 }
 
+// ————— Üretici profil sayfası (Instagram/TikTok tarzı): avatar + ad + bio + sosyal + ürettiği içerikler —————
+// Kaynak: public uretici_kartlari + yayınlanmış içerikler (RLS). Kendi profil düzenleme sistemine DOKUNMAZ.
+function UreticiProfili({ d, id, ac, geri }) {
+  const [uretici, setUretici] = useState(null);
+  const [icerikler, setIcerikler] = useState(null); // null: yükleniyor
+  useEffect(() => {
+    let aktif = true;
+    setUretici(null);
+    setIcerikler(null);
+    getUreticiProfil(id).then((u) => aktif && setUretici(u)).catch(() => {});
+    getUreticiIcerikleri(id).then((v) => aktif && setIcerikler(v)).catch(() => aktif && setIcerikler([]));
+    return () => { aktif = false; };
+  }, [id]);
+
+  const ad = uretici?.display_name || d.uretici;
+  const linkler = uretici
+    ? [
+        ["instagram", "Instagram", uretici.instagram],
+        ["tiktok", "TikTok", uretici.tiktok],
+        ["youtube", "YouTube", uretici.youtube],
+        ["twitter", "X", uretici.twitter],
+        ["website", d.website, uretici.website],
+      ].filter(([p, , ham]) => sosyalUrl(p, ham))
+    : [];
+
+  return (
+    <ScrollView style={s.kap} contentContainerStyle={{ padding: 16, paddingBottom: 48 }}>
+      <GeriButon d={d} geri={geri} />
+
+      {/* Başlık: baş harf avatarı + ad */}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginTop: 16 }}>
+        <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: t.surface2, borderWidth: 1, borderColor: t.line, alignItems: "center", justifyContent: "center" }}>
+          <Text style={{ color: t.accent, fontSize: 30, fontWeight: "800" }}>{(ad?.[0] || "?").toUpperCase()}</Text>
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[s.dim, { fontSize: 12 }]}>{d.uretici}</Text>
+          <Text style={{ color: t.text, fontSize: 20, fontWeight: "800" }} numberOfLines={2}>{ad}</Text>
+        </View>
+      </View>
+
+      {!!uretici?.bio && (
+        <Text style={[s.dim, { fontSize: 14, lineHeight: 20, marginTop: 14 }]}>{uretici.bio}</Text>
+      )}
+
+      {linkler.length > 0 && (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
+          {linkler.map(([p, etiket, ham]) => (
+            <TouchableOpacity key={p} onPress={() => Linking.openURL(sosyalUrl(p, ham))} style={s.sosyalPill}>
+              <Text style={s.sosyalPillYazi}>{etiket}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {/* Ürettiği içerikler */}
+      <View style={{ borderTopWidth: 1, borderTopColor: t.line, marginTop: 22, paddingTop: 18 }}>
+        {icerikler === null ? (
+          <ActivityIndicator color={t.accent} />
+        ) : icerikler.length === 0 ? (
+          <Text style={s.dim}>—</Text>
+        ) : (
+          icerikler.map((b) => <SonucSatiri key={String(b.id)} d={d} baslik={b} ac={ac} />)
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
 // ————— Oynatıcı: YouTube düzeni — video üstte sabit, altı kaydırılabilir —————
 // Video yüzeyi — YALNIZ videoId/cfUid/altyaziDil'e bağlı memoize edilmiş WebView.
 // Böylece Oynatici'nin diğer state'leri (Topluluk modalı, puan, üretici/Listem yüklemesi)
@@ -1492,7 +1657,7 @@ const VideoOynatici = memo(function VideoOynatici({ videoId, cfUid, altyaziDil }
   );
 });
 
-function Oynatici({ d, dil, video, baslik, user, altyaziDil, oynat, geri, girisAc }) {
+function Oynatici({ d, dil, video, baslik, user, altyaziDil, oynat, geri, girisAc, ureticiAc }) {
   const [sohbetAcik, setSohbetAcik] = useState(false); // Topluluk modalı (bölüm düzeyi oda)
   const [ekli, setEkli] = useState(null); // Listem: null bilinmiyor (Detay'dan taşındı)
   const [uretici, setUretici] = useState(null); // üretici kartı: ad + sosyal (Detay'dan taşındı)
@@ -1576,9 +1741,17 @@ function Oynatici({ d, dil, video, baslik, user, altyaziDil, oynat, geri, girisA
           <View style={{ marginTop: 18 }}>
             <Text style={[s.dim, { fontSize: 12, marginBottom: 6 }]}>{d.uretici}</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-              <Text style={{ color: t.text, fontSize: 15, fontWeight: "700" }}>
-                {uretici.display_name || d.uretici}
-              </Text>
+              {/* Ada dokun → üretici profil sayfası (bio + ürettiği içerikler) */}
+              <TouchableOpacity
+                onPress={() => baslik.creator_id && ureticiAc?.(baslik.creator_id)}
+                disabled={!baslik.creator_id}
+                style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+              >
+                <Text style={{ color: t.text, fontSize: 15, fontWeight: "700" }}>
+                  {uretici.display_name || d.uretici}
+                </Text>
+                {baslik.creator_id ? <Text style={{ color: t.dim, fontSize: 15 }}>›</Text> : null}
+              </TouchableOpacity>
               {[
                 ["instagram", "Instagram", uretici.instagram],
                 ["tiktok", "TikTok", uretici.tiktok],
@@ -1736,7 +1909,7 @@ function Durum({ d, mesaj, yukleniyor, geri }) {
 }
 
 // ————— Tablo: haftalık AI görsel yarışması (gönderim / anonim eleme / sergi) —————
-function Tablo({ d, user, girisAc, geri }) {
+function Tablo({ d, user, girisAc, geri, sekmeModu }) {
   const [hafta, setHafta] = useState(undefined); // undefined: yükleniyor, null: yok
   const [hata, setHata] = useState(null);
 
@@ -1748,12 +1921,15 @@ function Tablo({ d, user, girisAc, geri }) {
   useEffect(yukle, []);
 
   return (
-    <ScrollView style={s.kap} contentContainerStyle={{ paddingBottom: 48 }}>
+    <ScrollView style={s.kap} contentContainerStyle={{ paddingBottom: sekmeModu ? 130 : 48 }}>
       <View style={s.ustSatir}>
         <Text style={s.marka}>{d.tablo.baslik}</Text>
-        <TouchableOpacity style={s.dilDugme} onPress={geri}>
-          <Text style={s.dilYazi}>{d.geri}</Text>
-        </TouchableOpacity>
+        {/* Sekme modunda geri yok (alt nav'dan gelinir); tam ekranda geri kalır */}
+        {geri && (
+          <TouchableOpacity style={s.dilDugme} onPress={geri}>
+            <Text style={s.dilYazi}>{d.geri}</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {hata ? (

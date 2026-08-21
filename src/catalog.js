@@ -638,6 +638,23 @@ export async function getUreticiProfil(creatorId) {
   return data ?? null;
 }
 
+// Bir üreticinin herkese açık (yayınlanmış) içerikleri — üretici profil sayfası için.
+// getCatalog ile AYNI örüntü (onaylı bölümler + BTS hariç), yalnız creator_id'ye süzülür.
+// Yayınlanmış başlık + onaylı video zaten herkese açık (RLS) — yeni izin gerekmez.
+export async function getUreticiIcerikleri(creatorId) {
+  if (!creatorId) return [];
+  const { data } = await supabase
+    .from("titles")
+    .select("*, videos(*)")
+    .eq("creator_id", creatorId)
+    .eq("status", "published")
+    .order("published_at", { ascending: false });
+  return (data ?? [])
+    .map(onayliBolumler)
+    .map((b) => ({ ...b, videos: b.videos.filter((v) => (v.icerik_tipi ?? "ana") !== "yapim") }))
+    .filter((b) => b.videos.length > 0);
+}
+
 // Sosyal medya girişini güvenli URL'e çevirir: tam URL ise http/https doğrular; kullanıcı adı
 // (@ opsiyonel) ise platforma göre URL kurar. javascript:/data: gibi şemalar reddedilir → null.
 export function sosyalUrl(platform, ham) {

@@ -123,6 +123,19 @@ export async function getUreticiProfil(creatorId) {
   }
 }
 
+// Bir üreticinin herkese açık (yayınlanmış) içerikleri — üretici profil sayfası için.
+// getCatalog ile AYNI örüntü (onaylı bölümler + BTS hariç), yalnız creator_id'ye süzülür.
+export async function getUreticiIcerikleri(creatorId) {
+  if (!creatorId) return [];
+  const veri = await getir(
+    `titles?select=*,videos(*)&creator_id=eq.${creatorId}&status=eq.published&order=published_at.desc`
+  );
+  return veri
+    .map(onayliBolumler)
+    .map((b) => ({ ...b, videos: b.videos.filter((v) => (v.icerik_tipi ?? "ana") !== "yapim") }))
+    .filter((b) => b.videos.length > 0);
+}
+
 // Sosyal medya girişini güvenli URL'e çevirir: tam URL ise http/https doğrular; kullanıcı
 // adı (@ opsiyonel) ise platforma göre URL kurar. Aksi halde null.
 export function sosyalUrl(platform, ham) {
@@ -373,3 +386,27 @@ export function sohbetBegeniAbone(oda, onDelta) {
     .subscribe();
 }
 export const sohbetAbonelikBirak = (kanal) => { if (kanal) supabase.removeChannel(kanal); };
+
+// ————— Kendi profili (ad + bio + sosyal düzenleme) — web Profile.jsx ile aynı backend —————
+// Kendi profil satırını okur (RLS: "profil kendi kaydını okur"). role → sosyal alanların görünürlüğü.
+export async function profilGetir(userId) {
+  const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single();
+  if (error) throw error;
+  return data;
+}
+// Takma ad: doğrulama+moderasyon+tekillik EDGE FUNCTION'ından (web ile AYNI: set-nickname).
+export async function takmaAdAyarla(nickname, lang = "en") {
+  const { data, error } = await supabase.functions.invoke("set-nickname", { body: { nickname, lang } });
+  if (error) {
+    let kod = "sunucu";
+    try { const g = await error.context?.json?.(); if (g?.kod) kod = g.kod; } catch {}
+    return { hata: true, kod };
+  }
+  if (data?.hata) return { hata: true, kod: data.kod ?? "sunucu" };
+  return { ok: true, display_name: data.display_name };
+}
+// Bio + sosyal alanları — doğrudan self-update (RLS: "profil kendi kaydını günceller").
+export async function profilGuncelle(userId, alanlar) {
+  const { error } = await supabase.from("profiles").update(alanlar).eq("id", userId);
+  if (error) throw error;
+}
