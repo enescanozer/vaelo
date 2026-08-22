@@ -174,12 +174,14 @@ const SEKME_TANIM = [
   { id: "studio", ikon: "film-outline", aktifIkon: "film", et: "navStudio" },
   { id: "profile", ikon: "person-outline", aktifIkon: "person", et: "navProfile" },
 ];
-function AltNav({ d, sekme, setSekme }) {
+function AltNav({ d, sekme, setSekme, uretici }) {
   const inset = useSafeAreaInsets();
+  // Yükle/Stüdyo YALNIZ üreticilerde; izleyicilerde HİÇ görünmez (başvuru Profil'de).
+  const tanimlar = SEKME_TANIM.filter((sk) => uretici || (sk.id !== "upload" && sk.id !== "studio"));
   return (
     <View style={[s.altNavSar, { paddingBottom: Math.max(inset.bottom, 12) }]} pointerEvents="box-none">
       <View style={s.altNav}>
-        {SEKME_TANIM.map((sk) => (
+        {tanimlar.map((sk) => (
           <AltNavOge
             key={sk.id}
             sk={sk}
@@ -408,7 +410,12 @@ function ProfilEkrani({ d, user, dil, setDil, ayarlar, setAyarlar, girisAc }) {
                   </View>
                 )}
               </View>
-            ) : null
+            ) : (
+              /* İzleyici: "Üretici ol" başvurusu + pilot video — sekme YOK, alan burada */
+              <View style={{ marginTop: 22, paddingTop: 22, borderTopWidth: 1, borderTopColor: t.line }}>
+                <MobilBasvuru d={d} user={user} girisAc={girisAc} />
+              </View>
+            )
           )}
 
           {/* Çıkış — formun DIŞINDA (kazara basılmasın) */}
@@ -488,59 +495,48 @@ function MobilBasvuru({ d, user, girisAc }) {
     setGonderiliyor(false);
   }
 
-  if (!user) {
-    return (
-      <View style={[s.kap, { alignItems: "center", justifyContent: "center", padding: 32, paddingBottom: 120 }]}>
-        <Ionicons name="ribbon-outline" size={46} color={t.dim} />
-        <Text style={[s.modalBaslik, { marginTop: 16 }]}>{u.baslik}</Text>
-        <Text style={[s.dim, { textAlign: "center", marginTop: 8 }]}>{u.girisGerek}</Text>
-        <TouchableOpacity style={[s.izleDugme, { marginTop: 20 }]} onPress={girisAc}>
-          <Gradyan /><Text style={s.izleYazi}>{d.girisYap}</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  if (!user) return null; // yalnız Profil içinde (girişli) gömülü kullanılır
   if (durum === undefined) {
-    return <View style={[s.kap, { alignItems: "center", justifyContent: "center", paddingBottom: 120 }]}><ActivityIndicator color={t.accent} /></View>;
+    return <View style={{ paddingVertical: 24, alignItems: "center" }}><ActivityIndicator color={t.accent} /></View>;
   }
 
   const dr = durum?.durum;
   const alan = { backgroundColor: t.surface2, borderWidth: 1, borderColor: t.line, borderRadius: 10, color: t.text, fontSize: 14, padding: 12, marginTop: 16, minHeight: 96, textAlignVertical: "top" };
 
   return (
-    <ScrollView style={s.kap} contentContainerStyle={{ padding: 20, paddingBottom: 130 }} keyboardShouldPersistTaps="handled">
-      <Text style={s.oynaticiAd}>{u.baslik}</Text>
-      <Text style={[s.dim, { fontSize: 14, marginTop: 6, lineHeight: 20 }]}>{u.aciklama}</Text>
+    <View>
+      <Text style={{ color: t.text, fontSize: 17, fontWeight: "800" }}>{u.baslik}</Text>
+      <Text style={[s.dim, { fontSize: 13, marginTop: 6, lineHeight: 19 }]}>{u.aciklama}</Text>
 
       {dr === "beklemede" || dr === "onaylandi" ? (
-        <View style={{ marginTop: 22, borderWidth: 1, borderColor: t.accent, borderRadius: 12, padding: 16, backgroundColor: t.surface }}>
-          <Text style={{ color: t.accent, fontWeight: "600", fontSize: 15, lineHeight: 21 }}>{dr === "onaylandi" ? u.onaylandi : u.beklemede}</Text>
+        <View style={{ marginTop: 16, borderWidth: 1, borderColor: t.accent, borderRadius: 12, padding: 16, backgroundColor: t.surface }}>
+          <Text style={{ color: t.accent, fontWeight: "600", fontSize: 14, lineHeight: 20 }}>{dr === "onaylandi" ? u.onaylandi : u.beklemede}</Text>
         </View>
       ) : (
         <>
           {dr === "reddedildi" && (
-            <View style={{ marginTop: 18, borderWidth: 1, borderColor: t.danger, borderRadius: 12, padding: 16, backgroundColor: t.surface }}>
-              <Text style={{ color: t.danger, fontWeight: "600", fontSize: 15 }}>{u.reddedildi}</Text>
+            <View style={{ marginTop: 14, borderWidth: 1, borderColor: t.danger, borderRadius: 12, padding: 14, backgroundColor: t.surface }}>
+              <Text style={{ color: t.danger, fontWeight: "600", fontSize: 14 }}>{u.reddedildi}</Text>
             </View>
           )}
           <TextInput value={mesaj} onChangeText={setMesaj} style={alan} placeholder={u.mesajYer} placeholderTextColor={t.dim} multiline />
 
           {/* Pilot video (opsiyonel) — 'pilot' bucket'ına yüklenir, başvuruya bağlanır */}
-          <Text style={{ color: t.text, fontWeight: "600", fontSize: 15, marginTop: 22 }}>{u.pilotBaslik}</Text>
-          <Text style={[s.dim, { fontSize: 13, marginTop: 4, lineHeight: 19 }]}>{u.pilotAciklama}</Text>
-          <TouchableOpacity onPress={videoSec} style={{ marginTop: 12, flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: varlik ? t.accent : t.line, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 16, backgroundColor: t.surface2 }}>
+          <Text style={{ color: t.text, fontWeight: "600", fontSize: 14, marginTop: 18 }}>{u.pilotBaslik}</Text>
+          <Text style={[s.dim, { fontSize: 12, marginTop: 4, lineHeight: 18 }]}>{u.pilotAciklama}</Text>
+          <TouchableOpacity onPress={videoSec} style={{ marginTop: 10, flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: varlik ? t.accent : t.line, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 16, backgroundColor: t.surface2 }}>
             <Ionicons name={varlik ? "checkmark-circle" : "videocam-outline"} size={20} color={varlik ? t.accent : t.dim} />
             <Text style={{ color: varlik ? t.accent : t.text, fontWeight: "600", fontSize: 14 }}>{varlik ? u.pilotSecili : u.pilotSec}</Text>
           </TouchableOpacity>
           {varlik && <Text style={[s.dim, { fontSize: 12, marginTop: 6 }]} numberOfLines={1}>{varlik.fileName || varlik.uri.split("/").pop()}</Text>}
 
-          <TouchableOpacity style={[s.izleDugme, { marginTop: 24, opacity: gonderiliyor ? 0.6 : 1 }]} onPress={gonder} disabled={gonderiliyor}>
+          <TouchableOpacity style={[s.izleDugme, { marginTop: 20, opacity: gonderiliyor ? 0.6 : 1 }]} onPress={gonder} disabled={gonderiliyor}>
             <Gradyan />
             <Text style={s.izleYazi}>{dr === "reddedildi" ? u.tekrarGonder : u.gonder}</Text>
           </TouchableOpacity>
         </>
       )}
-    </ScrollView>
+    </View>
   );
 }
 
@@ -994,6 +990,10 @@ export default function App() {
     profilGetir(user.id).then((p) => setRol(p?.role ?? "viewer")).catch(() => setRol("viewer"));
   }, [user?.id]);
   const uretici = rol === "creator" || rol === "admin";
+  // Üretici değilken Yükle/Stüdyo'da kalmasın (çıkış/rol değişimi) → Profil'e (başvuru orada)
+  useEffect(() => {
+    if (!uretici && (sekme === "upload" || sekme === "studio")) setSekme("profile");
+  }, [uretici, sekme]);
 
   // Ayarları (dil + alt yazı) cihazda kalıcı tut. yuklendi bayrağı olmadan ilk
   // render'daki kaydetme, AsyncStorage okumasından önce bitip kaydı default'la
@@ -1058,30 +1058,28 @@ export default function App() {
               ac={(id) => setGorunum({ tip: "detay", id })}
               aramaOdak={sekme === "discover"}
               festivalGit={(hedef) => {
-                // sanat → Sanat sekmesi; film → giriş yoksa çağır, varsa Upload sekmesi
+                // sanat → Sanat sekmesi; film → üretici Yükle'ye, izleyici Profil'e (başvuru)
                 if (hedef === "art") return setSekme("sanat");
                 if (!user) return setGirisAcik(true);
-                setSekme("upload");
+                setSekme(uretici ? "upload" : "profile");
               }}
             />
           )}
-          {sekme === "upload" && (uretici ? (
+          {/* Yükle/Stüdyo YALNIZ üreticilerde (izleyicide sekme de yok, ekran da açılmaz) */}
+          {sekme === "upload" && uretici && (
             <MobilYukle d={d} user={user} girisAc={() => setGirisAcik(true)} />
-          ) : (
-            <MobilBasvuru d={d} user={user} girisAc={() => setGirisAcik(true)} />
-          ))}
+          )}
           {sekme === "sanat" && (
             <Tablo d={d} user={user} girisAc={() => setGirisAcik(true)} sekmeModu />
           )}
-          {sekme === "studio" && (uretici ? (
+          {sekme === "studio" && uretici && (
             <MobilStudyo d={d} user={user} girisAc={() => setGirisAcik(true)} />
-          ) : (
-            <MobilBasvuru d={d} user={user} girisAc={() => setGirisAcik(true)} />
-          ))}
+          )}
           {sekme === "profile" && (
             <ProfilEkrani
               d={d}
               user={user}
+              uretici={uretici}
               dil={dil}
               setDil={setDil}
               ayarlar={ayarlar}
@@ -1089,7 +1087,7 @@ export default function App() {
               girisAc={() => setGirisAcik(true)}
             />
           )}
-          <AltNav d={d} sekme={sekme} setSekme={setSekme} />
+          <AltNav d={d} sekme={sekme} setSekme={setSekme} uretici={uretici} />
         </>
       )}
       {gorunum.tip === "tablo" && (
