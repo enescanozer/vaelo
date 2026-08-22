@@ -65,6 +65,7 @@ import {
   getYarismaVerisi,
   voteContest,
   enterContest,
+  getCreatorStats,
 } from "./api";
 import {
   useAuth,
@@ -259,30 +260,43 @@ function ProfilEkrani({ d, user, dil, setDil, ayarlar, setAyarlar, girisAc }) {
       />
       {user ? (
         <>
-          <Text style={{ color: t.text, fontSize: 17, fontWeight: "700" }}>{user.email}</Text>
+          {/* Hesap başlığı: gradient halkalı avatar + ad/e-posta */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <View style={{ width: 54, height: 54, borderRadius: 27, overflow: "hidden", alignItems: "center", justifyContent: "center" }}>
+              <Gradyan />
+              <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: t.surface2, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ color: t.accent, fontSize: 20, fontWeight: "800" }}>{((ad || user.email)?.[0] || "?").toUpperCase()}</Text>
+              </View>
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={{ color: t.text, fontSize: 16, fontWeight: "700" }} numberOfLines={1}>{ad || user.email}</Text>
+              <Text style={[s.dim, { fontSize: 12 }]} numberOfLines={1}>{ad ? user.email : uretici ? d.uretici : ""}</Text>
+            </View>
+          </View>
 
           {/* Görünen ad — herkes */}
           <Text style={s.ayarBolum}>{p.gorunenAd}</Text>
           <TextInput value={ad} onChangeText={(x) => { setAd(x); setKayd(null); }} style={alan}
             placeholder={p.gorunenAd} placeholderTextColor={t.dim} autoCapitalize="none" maxLength={20} />
 
-          {/* Bio + sosyal — yalnız üretici/admin */}
+          {/* Üretici profili — kart içinde gruplu (bio + sosyal), yalnız üretici/admin */}
           {uretici && (
-            <>
-              <Text style={s.ayarBolum}>{p.bio}</Text>
+            <View style={{ marginTop: 18, padding: 14, backgroundColor: t.surface, borderWidth: 1, borderColor: t.line, borderRadius: 12 }}>
+              <Text style={{ color: t.accent, fontSize: 11, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase" }}>{d.uretici}</Text>
+              <Text style={[s.dim, { fontSize: 12, marginTop: 10 }]}>{p.bio}</Text>
               <TextInput value={bio} onChangeText={(x) => { setBio(x); setKayd(null); }}
-                style={[alan, { minHeight: 72, textAlignVertical: "top" }]} multiline maxLength={300}
+                style={[alan, { minHeight: 72, textAlignVertical: "top", marginTop: 4 }]} multiline maxLength={300}
                 placeholder={p.bio} placeholderTextColor={t.dim} />
-              <Text style={s.ayarBolum}>{p.sosyal}</Text>
+              <Text style={[s.dim, { fontSize: 12, marginTop: 12 }]}>{p.sosyal}</Text>
               {[["instagram", "Instagram"], ["tiktok", "TikTok"], ["youtube", "YouTube"], ["twitter", "X"], ["website", d.website]].map(([k, lbl]) => (
                 <TextInput key={k} value={sosyal[k]} onChangeText={(x) => { setSosyal((sc) => ({ ...sc, [k]: x })); setKayd(null); }}
-                  style={alan} placeholder={lbl} placeholderTextColor={t.dim} autoCapitalize="none" autoCorrect={false} />
+                  style={[alan, { marginTop: 6 }]} placeholder={lbl} placeholderTextColor={t.dim} autoCapitalize="none" autoCorrect={false} />
               ))}
-            </>
+            </View>
           )}
 
           {pHata && <Text style={{ color: t.danger, fontSize: 13, marginTop: 10 }}>{pHata}</Text>}
-          <View style={{ flexDirection: "row", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
+          <View style={{ flexDirection: "row", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
             <TouchableOpacity style={[s.izleDugme, { opacity: kayd === "kaydediliyor" ? 0.6 : 1 }]} onPress={kaydet} disabled={kayd === "kaydediliyor"}>
               <Gradyan />
               <Text style={s.izleYazi}>{kayd === "oldu" ? p.kaydedildi : p.kaydet}</Text>
@@ -302,6 +316,8 @@ function ProfilEkrani({ d, user, dil, setDil, ayarlar, setAyarlar, girisAc }) {
         </>
       )}
 
+      {/* Ayarlar bölümü — ayırıcı */}
+      <View style={{ height: 1, backgroundColor: t.line, marginTop: 26 }} />
       <Text style={s.ayarBolum}>{d.dilEtiket}</Text>
       {diller.map((kod) => (
         <Satir key={kod} etiket={DIL_ADI[kod] ?? kod.toUpperCase()} secili={dil === kod} sec={() => setDil(kod)} />
@@ -655,6 +671,80 @@ function MobilYarisma({ d, user, girisAc, geri }) {
   );
 }
 
+// ————— Mobil Stüdyo: üreticinin içerik + izlenme özeti (salt-görüntüleme) —————
+// Veri: creator_stats() RPC (web Studio ile aynı). Alt yazı/hakediş web'de; mobil özet gösterir.
+const DURUM_RENK = { uploading: "#8C8F88", processing: "#8C8F88", in_review: "#ECEEE9", approved: "#FF4DBD", rejected: "#E2574C" };
+function MobilStudyo({ d, user, girisAc }) {
+  const st = d.studyo;
+  const [satirlar, setSatirlar] = useState(null); // null: yükleniyor
+  useEffect(() => {
+    if (!user) { setSatirlar([]); return; }
+    let aktif = true;
+    getCreatorStats().then((v) => aktif && setSatirlar(v)).catch(() => aktif && setSatirlar([]));
+    return () => { aktif = false; };
+  }, [user?.id]);
+
+  if (!user) {
+    return (
+      <View style={[s.kap, { alignItems: "center", justifyContent: "center", padding: 32, paddingBottom: 120 }]}>
+        <Ionicons name="film-outline" size={46} color={t.dim} />
+        <Text style={[s.modalBaslik, { marginTop: 16 }]}>{st.baslik}</Text>
+        <Text style={[s.dim, { textAlign: "center", marginTop: 8 }]}>{st.girisGerek}</Text>
+        <TouchableOpacity style={[s.izleDugme, { marginTop: 20 }]} onPress={girisAc}>
+          <Gradyan /><Text style={s.izleYazi}>{d.girisYap}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+  if (satirlar === null) return <Durum d={d} yukleniyor />;
+
+  const toplamIzlenme = satirlar.reduce((a, r) => a + Number(r.izlenme || 0), 0);
+  const toplamSaat = satirlar.reduce((a, r) => a + Number(r.toplam_saniye || 0), 0) / 3600;
+  const yayinda = satirlar.filter((r) => r.durum === "approved").length;
+  const OzetKart = ({ n, e }) => (
+    <View style={{ flex: 1, backgroundColor: t.surface, borderWidth: 1, borderColor: t.line, borderRadius: 12, padding: 14, alignItems: "center" }}>
+      <Text style={{ color: t.text, fontSize: 20, fontWeight: "800" }}>{n}</Text>
+      <Text style={[s.dim, { fontSize: 11, marginTop: 3, textAlign: "center" }]}>{e}</Text>
+    </View>
+  );
+
+  return (
+    <ScrollView style={s.kap} contentContainerStyle={{ padding: 16, paddingBottom: 130 }}>
+      <Text style={s.oynaticiAd}>{st.baslik}</Text>
+      <Text style={[s.dim, { fontSize: 14, marginTop: 4 }]}>{st.altyazi}</Text>
+
+      <View style={{ flexDirection: "row", gap: 10, marginTop: 18 }}>
+        <OzetKart n={toplamIzlenme} e={st.izlenme} />
+        <OzetKart n={toplamSaat.toFixed(1)} e={st.saat} />
+        <OzetKart n={yayinda} e={st.yayinda} />
+      </View>
+
+      <View style={{ marginTop: 20 }}>
+        {satirlar.length === 0 ? (
+          <Text style={[s.dim, { textAlign: "center", paddingVertical: 24 }]}>{st.bos}</Text>
+        ) : (
+          satirlar.map((r) => (
+            <View key={String(r.bolum_id)} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.line }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ color: t.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
+                  {r.baslik_ad}
+                  {r.sezon ? ` · ${d.seb(r.sezon, r.bolum)}` : ""}
+                  {r.bolum_ad ? ` — ${r.bolum_ad}` : ""}
+                </Text>
+                <Text style={[s.dim, { fontSize: 12, marginTop: 2 }]}>{r.izlenme} {st.izlenme}</Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: DURUM_RENK[r.durum] || t.dim }} />
+                <Text style={{ color: DURUM_RENK[r.durum] || t.dim, fontSize: 12, fontWeight: "600" }}>{st.durum[r.durum] ?? r.durum}</Text>
+              </View>
+            </View>
+          ))
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
 // ————— STEP 1: ücretsiz oynatma doğrulaması (geçici) —————
 // Cloudflare Stream'e para harcamadan Watch→oynatıcı→gerçek oynatma zincirini kanıtlamak
 // için, cf_uid YOKKEN (demo seed) herkese açık bir test HLS akışı oynatılır. iOS WebView
@@ -785,7 +875,7 @@ export default function App() {
             <Tablo d={d} user={user} girisAc={() => setGirisAcik(true)} sekmeModu />
           )}
           {sekme === "studio" && (
-            <Gecit d={d} tip="studio" user={user} girisAc={() => setGirisAcik(true)} />
+            <MobilStudyo d={d} user={user} girisAc={() => setGirisAcik(true)} />
           )}
           {sekme === "profile" && (
             <ProfilEkrani

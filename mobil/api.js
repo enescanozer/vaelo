@@ -488,3 +488,10 @@ export async function getYarismaVerisi(userId) {
   ]);
   return { yarisma, girisler, oylar, benimOyum, basliklarim };
 }
+
+// ————— Stüdyo: üreticinin içerik + izlenme özeti (creator_stats RPC; authenticated) —————
+export async function getCreatorStats() {
+  const { data, error } = await supabase.rpc("creator_stats");
+  if (error) throw error;
+  return data ?? [];
+}
