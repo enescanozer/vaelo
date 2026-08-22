@@ -68,6 +68,10 @@ import {
   voteContest,
   enterContest,
   getCreatorStats,
+  getOneri,
+  getCreatorBasvurum,
+  creatorBasvur,
+  pilotVideoYukle,
 } from "./api";
 import {
   useAuth,
@@ -408,23 +412,99 @@ function ProfilEkrani({ d, user, dil, setDil, ayarlar, setAyarlar, girisAc }) {
   );
 }
 
-// ————— Geçit: mobilde henüz olmayan üretici akışları (Upload/Studio) — dürüst bilgi —————
-function Gecit({ d, tip, user, girisAc }) {
-  const ikon = tip === "upload" ? "cloud-upload-outline" : "film-outline";
-  const baslik = tip === "upload" ? d.navUpload : d.navStudio;
-  const mesaj = tip === "upload" ? d.gecitUpload : d.gecitStudio;
-  return (
-    <View style={[s.kap, { alignItems: "center", justifyContent: "center", padding: 32, paddingBottom: 120 }]}>
-      <Ionicons name={ikon} size={46} color={t.dim} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
-      <Text style={[s.modalBaslik, { marginTop: 16, textAlign: "center" }]}>{baslik}</Text>
-      <Text style={[s.dim, { textAlign: "center", marginTop: 8, lineHeight: 20 }]}>{mesaj}</Text>
-      {!user && (
+
+// ————— Mobil Üretici Başvurusu: web CreatorBasvuru ile AYNI backend/geçit —————
+// Onaysız yükleme YOK. Kısa mesaj + opsiyonel pilot video (expo-image-picker → 'pilot' bucket).
+// Onaylanınca role='creator' → App() rolü tazeleyince Yükle/Stüdyo açılır.
+function MobilBasvuru({ d, user, girisAc }) {
+  const u = d.basvuru;
+  const [durum, setDurum] = useState(undefined); // undefined:yük · null:yok · {durum}
+  const [mesaj, setMesaj] = useState("");
+  const [varlik, setVarlik] = useState(null); // pilot video (opsiyonel)
+  const [gonderiliyor, setGonderiliyor] = useState(false);
+
+  useEffect(() => {
+    if (!user) return setDurum(null);
+    getCreatorBasvurum(user.id).then(setDurum).catch(() => setDurum(null));
+  }, [user?.id]);
+
+  async function videoSec() {
+    try {
+      const izin = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!izin.granted) return;
+      const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Videos, quality: 1 });
+      if (!r.canceled && r.assets?.[0]) setVarlik(r.assets[0]);
+    } catch { /* iptal / izin yok */ }
+  }
+
+  async function gonder() {
+    if (gonderiliyor) return;
+    setGonderiliyor(true);
+    try {
+      let pilotUrl = null, pilotPath = null;
+      if (varlik) {
+        const r = await pilotVideoYukle(user.id, varlik); // 'pilot' bucket → { path, url }
+        pilotUrl = r.url; pilotPath = r.path;
+      }
+      const { error } = await creatorBasvur(user.id, mesaj.trim(), pilotUrl, pilotPath);
+      if (!error) setDurum({ durum: "beklemede" });
+    } catch { /* yükleme/başvuru hatası → durum değişmez, kullanıcı tekrar dener */ }
+    setGonderiliyor(false);
+  }
+
+  if (!user) {
+    return (
+      <View style={[s.kap, { alignItems: "center", justifyContent: "center", padding: 32, paddingBottom: 120 }]}>
+        <Ionicons name="ribbon-outline" size={46} color={t.dim} />
+        <Text style={[s.modalBaslik, { marginTop: 16 }]}>{u.baslik}</Text>
+        <Text style={[s.dim, { textAlign: "center", marginTop: 8 }]}>{u.girisGerek}</Text>
         <TouchableOpacity style={[s.izleDugme, { marginTop: 20 }]} onPress={girisAc}>
-          <Gradyan />
-          <Text style={s.izleYazi}>{d.girisYap}</Text>
+          <Gradyan /><Text style={s.izleYazi}>{d.girisYap}</Text>
         </TouchableOpacity>
+      </View>
+    );
+  }
+  if (durum === undefined) {
+    return <View style={[s.kap, { alignItems: "center", justifyContent: "center", paddingBottom: 120 }]}><ActivityIndicator color={t.accent} /></View>;
+  }
+
+  const dr = durum?.durum;
+  const alan = { backgroundColor: t.surface2, borderWidth: 1, borderColor: t.line, borderRadius: 10, color: t.text, fontSize: 14, padding: 12, marginTop: 16, minHeight: 96, textAlignVertical: "top" };
+
+  return (
+    <ScrollView style={s.kap} contentContainerStyle={{ padding: 20, paddingBottom: 130 }} keyboardShouldPersistTaps="handled">
+      <Text style={s.oynaticiAd}>{u.baslik}</Text>
+      <Text style={[s.dim, { fontSize: 14, marginTop: 6, lineHeight: 20 }]}>{u.aciklama}</Text>
+
+      {dr === "beklemede" || dr === "onaylandi" ? (
+        <View style={{ marginTop: 22, borderWidth: 1, borderColor: t.accent, borderRadius: 12, padding: 16, backgroundColor: t.surface }}>
+          <Text style={{ color: t.accent, fontWeight: "600", fontSize: 15, lineHeight: 21 }}>{dr === "onaylandi" ? u.onaylandi : u.beklemede}</Text>
+        </View>
+      ) : (
+        <>
+          {dr === "reddedildi" && (
+            <View style={{ marginTop: 18, borderWidth: 1, borderColor: t.danger, borderRadius: 12, padding: 16, backgroundColor: t.surface }}>
+              <Text style={{ color: t.danger, fontWeight: "600", fontSize: 15 }}>{u.reddedildi}</Text>
+            </View>
+          )}
+          <TextInput value={mesaj} onChangeText={setMesaj} style={alan} placeholder={u.mesajYer} placeholderTextColor={t.dim} multiline />
+
+          {/* Pilot video (opsiyonel) — 'pilot' bucket'ına yüklenir, başvuruya bağlanır */}
+          <Text style={{ color: t.text, fontWeight: "600", fontSize: 15, marginTop: 22 }}>{u.pilotBaslik}</Text>
+          <Text style={[s.dim, { fontSize: 13, marginTop: 4, lineHeight: 19 }]}>{u.pilotAciklama}</Text>
+          <TouchableOpacity onPress={videoSec} style={{ marginTop: 12, flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: varlik ? t.accent : t.line, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 16, backgroundColor: t.surface2 }}>
+            <Ionicons name={varlik ? "checkmark-circle" : "videocam-outline"} size={20} color={varlik ? t.accent : t.dim} />
+            <Text style={{ color: varlik ? t.accent : t.text, fontWeight: "600", fontSize: 14 }}>{varlik ? u.pilotSecili : u.pilotSec}</Text>
+          </TouchableOpacity>
+          {varlik && <Text style={[s.dim, { fontSize: 12, marginTop: 6 }]} numberOfLines={1}>{varlik.fileName || varlik.uri.split("/").pop()}</Text>}
+
+          <TouchableOpacity style={[s.izleDugme, { marginTop: 24, opacity: gonderiliyor ? 0.6 : 1 }]} onPress={gonder} disabled={gonderiliyor}>
+            <Gradyan />
+            <Text style={s.izleYazi}>{dr === "reddedildi" ? u.tekrarGonder : u.gonder}</Text>
+          </TouchableOpacity>
+        </>
       )}
-    </View>
+    </ScrollView>
   );
 }
 
@@ -870,6 +950,15 @@ export default function App() {
   const { user } = useAuth();
   const d = METINLER[dil];
 
+  // Rol (üretici geçidi): Yükle/Stüdyo yalnız creator/admin'e açık; izleyici başvuru görür.
+  // (web ile birebir: onaylanmadan yükleme yok.) null = henüz yüklenmedi.
+  const [rol, setRol] = useState(null);
+  useEffect(() => {
+    if (!user) return setRol(null);
+    profilGetir(user.id).then((p) => setRol(p?.role ?? "viewer")).catch(() => setRol("viewer"));
+  }, [user?.id]);
+  const uretici = rol === "creator" || rol === "admin";
+
   // Ayarları (dil + alt yazı) cihazda kalıcı tut. yuklendi bayrağı olmadan ilk
   // render'daki kaydetme, AsyncStorage okumasından önce bitip kaydı default'la
   // ezebilirdi (yarış koşulu) — bu yüzden yükleme tamamlanana dek yazmıyoruz.
@@ -940,15 +1029,19 @@ export default function App() {
               }}
             />
           )}
-          {sekme === "upload" && (
+          {sekme === "upload" && (uretici ? (
             <MobilYukle d={d} user={user} girisAc={() => setGirisAcik(true)} />
-          )}
+          ) : (
+            <MobilBasvuru d={d} user={user} girisAc={() => setGirisAcik(true)} />
+          ))}
           {sekme === "sanat" && (
             <Tablo d={d} user={user} girisAc={() => setGirisAcik(true)} sekmeModu />
           )}
-          {sekme === "studio" && (
+          {sekme === "studio" && (uretici ? (
             <MobilStudyo d={d} user={user} girisAc={() => setGirisAcik(true)} />
-          )}
+          ) : (
+            <MobilBasvuru d={d} user={user} girisAc={() => setGirisAcik(true)} />
+          ))}
           {sekme === "profile" && (
             <ProfilEkrani
               d={d}
@@ -1575,10 +1668,18 @@ function Ana({ d, user, girisAc, ayarlarAc, tabloAc, yarismaAc, oynat, ac, arama
   // Kişisel raflar (girişli)
   const [devam, setDevam] = useState([]);
   const [listem, setListem] = useState([]);
+  const [oneri, setOneri] = useState([]); // "Sana özel" — aktif öneri stratejisi (web ile aynı backend)
 
   useEffect(() => {
     getCatalogOnbellekli().then(setKatalog).catch((e) => setHata(e.message));
   }, []);
+
+  // "Sana özel" öneri: girişte kişisel, anonimde trending'e düşer (oneri_getir dağıtıcısı)
+  useEffect(() => {
+    let aktif = true;
+    getOneri(user?.id ?? null, 12).then((ids) => aktif && setOneri(ids)).catch(() => {});
+    return () => { aktif = false; };
+  }, [user?.id]);
 
   // Girişli kullanıcının devam et + Listem rafları
   useEffect(() => {
@@ -1770,6 +1871,17 @@ function Ana({ d, user, girisAc, ayarlarAc, tabloAc, yarismaAc, oynat, ac, arama
           ogeler={listem.map((b) => ({ baslik: b, bas: () => ac(b.id) }))}
         />
       )}
+      {(() => {
+        // Öneri title_id'lerini katalog nesnelerine çöz (sıra korunur)
+        const oneriler = oneri.map((id) => (katalog || []).find((k) => k.id === id)).filter(Boolean);
+        return oneriler.length > 0 ? (
+          <YatayRaf
+            d={d}
+            ad={d.sanaOzel}
+            ogeler={oneriler.map((b) => ({ baslik: b, bas: () => ac(b.id) }))}
+          />
+        ) : null;
+      })()}
       {buHafta.length > 0 && (
         <YatayRaf
           d={d}

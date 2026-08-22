@@ -422,6 +422,39 @@ export async function getBenimIceriklerim(userId) {
 // İçeriği sil (sahibi/admin) — cascade: videolar→izlenme/oy, listem, yarışma (sql/38 RPC).
 export const icerikSil = (titleId) => supabase.rpc("icerik_sil", { p_title: titleId });
 
+// ————— Öneri dağıtıcısı (web ile AYNI backend): aktif stratejiden sıralı title_id —————
+export async function getOneri(userId, topN = 12) {
+  const { data, error } = await supabase.rpc("oneri_getir", { p_user: userId ?? null, p_top: topN });
+  if (error) return [];
+  return (data ?? []).map((r) => r.title_id);
+}
+
+// ————— Üretici başvurusu (web CreatorBasvuru ile AYNI backend) —————
+export async function getCreatorBasvurum(userId) {
+  const { data } = await supabase
+    .from("creator_basvurulari").select("durum, mesaj").eq("user_id", userId).maybeSingle();
+  return data ?? null;
+}
+// Pilot videoyu 'pilot' bucket'ına yükle (eserGonder örüntüsü) → { path, url }
+export async function pilotVideoYukle(userId, varlik) {
+  const uzanti = (varlik.uri.split(".").pop() || "mp4").toLowerCase().split("?")[0];
+  const yol = `${userId}/${Date.now()}.${uzanti}`;
+  const cevap = await fetch(varlik.uri);
+  const veri = await cevap.arrayBuffer();
+  const { error } = await supabase.storage.from("pilot").upload(yol, veri, {
+    contentType: varlik.mimeType || "video/mp4",
+  });
+  if (error) throw error;
+  const { data } = supabase.storage.from("pilot").getPublicUrl(yol);
+  return { path: yol, url: data.publicUrl };
+}
+export async function creatorBasvur(userId, mesaj, pilotUrl = null, pilotPath = null) {
+  return supabase.from("creator_basvurulari").upsert(
+    { user_id: userId, mesaj: mesaj || null, durum: "beklemede", karar_at: null, pilot_video_url: pilotUrl, pilot_video_path: pilotPath },
+    { onConflict: "user_id" }
+  );
+}
+
 // ————— Üretici yükleme (web Upload.jsx ile AYNI akış) —————
 // Üreticinin kendi başlıkları (RLS: creator_id = auth.uid())
 export async function benimBasliklarim(userId) {
