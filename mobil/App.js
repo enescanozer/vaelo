@@ -59,6 +59,9 @@ import {
   profilGetir,
   takmaAdAyarla,
   profilGuncelle,
+  benimBasliklarim,
+  baslikOlustur,
+  createUpload,
 } from "./api";
 import {
   useAuth,
@@ -334,6 +337,216 @@ function Gecit({ d, tip, user, girisAc }) {
   );
 }
 
+// ————— Mobil Yükle: native video yükleme (web Upload.jsx akışının aynısı) —————
+// Video seç (expo-image-picker) → (yeni ise) başlık oluştur → create-upload imzalı URL →
+// dosyayı DOĞRUDAN Cloudflare'e XHR ile gönder (ilerleme). Kategori: kısa/uzun film · dizi.
+function MobilYukle({ d, user, girisAc }) {
+  const y = d.yukle;
+  const [basliklar, setBasliklar] = useState([]);
+  const [hedef, setHedef] = useState("yeni"); // "yeni" | başlık id
+  const [ad, setAd] = useState("");
+  const [kind, setKind] = useState("kisa_film"); // kisa_film | uzun_film | dizi
+  const [tur, setTur] = useState("");
+  const [yil, setYil] = useState(String(new Date().getFullYear()));
+  const [aciklama, setAciklama] = useState("");
+  const [haftalik, setHaftalik] = useState(false);
+  const [icerikTipi, setIcerikTipi] = useState("ana"); // ana | yapim
+  const [sezon, setSezon] = useState("1");
+  const [bolum, setBolum] = useState("1");
+  const [bolumAd, setBolumAd] = useState("");
+  const [varlik, setVarlik] = useState(null); // seçilen video
+  const [asama, setAsama] = useState("hazir"); // hazir | gonderiliyor | yuklendi
+  const [ilerleme, setIlerleme] = useState(0);
+  const [hata, setHata] = useState(null);
+
+  useEffect(() => {
+    if (user) benimBasliklarim(user.id).then(setBasliklar).catch(() => {});
+  }, [user?.id]);
+
+  const alan = { backgroundColor: t.surface2, borderWidth: 1, borderColor: t.line, borderRadius: 10, color: t.text, fontSize: 14, paddingHorizontal: 12, paddingVertical: 10, marginTop: 6 };
+  const etiketStil = { color: t.dim, fontSize: 13, marginTop: 18, fontWeight: "600" };
+
+  if (!user) {
+    return (
+      <View style={[s.kap, { alignItems: "center", justifyContent: "center", padding: 32, paddingBottom: 120 }]}>
+        <Ionicons name="cloud-upload-outline" size={46} color={t.dim} />
+        <Text style={[s.modalBaslik, { marginTop: 16 }]}>{y.baslik}</Text>
+        <Text style={[s.dim, { textAlign: "center", marginTop: 8 }]}>{y.girisGerek}</Text>
+        <TouchableOpacity style={[s.izleDugme, { marginTop: 20 }]} onPress={girisAc}>
+          <Gradyan /><Text style={s.izleYazi}>{d.girisYap}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const seciliBaslik = basliklar.find((b) => b.id === hedef);
+  const dizi = hedef === "yeni" ? kind === "dizi" : seciliBaslik?.kind === "dizi";
+
+  async function videoSec() {
+    try {
+      const izin = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!izin.granted) return;
+      const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Videos, quality: 1 });
+      if (!r.canceled && r.assets?.[0]) { setVarlik(r.assets[0]); setHata(null); }
+    } catch { /* iptal / izin yok */ }
+  }
+
+  async function gonder() {
+    if (asama === "gonderiliyor") return;
+    if (!varlik || (hedef === "yeni" && !ad.trim())) { setHata(y.hata); return; }
+    setHata(null); setAsama("gonderiliyor"); setIlerleme(0);
+    try {
+      let titleId = hedef;
+      if (hedef === "yeni") {
+        titleId = await baslikOlustur({
+          creator_id: user.id, name: ad.trim(), kind,
+          genre: tur.trim() || null, year: Number(yil) || null,
+          description: aciklama.trim() || null,
+          haftalik: kind === "dizi" ? haftalik : false, status: "draft",
+        });
+      }
+      const yanit = await createUpload({
+        title_id: titleId, name: bolumAd.trim() || null,
+        season: dizi && icerikTipi === "ana" ? Number(sezon) : null,
+        episode: dizi && icerikTipi === "ana" ? Number(bolum) : null,
+        icerik_tipi: icerikTipi,
+      });
+      await new Promise((coz, reddet) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", yanit.uploadURL);
+        xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) setIlerleme(Math.round((ev.loaded / ev.total) * 100)); };
+        xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? coz() : reddet(new Error("cf")));
+        xhr.onerror = () => reddet(new Error("net"));
+        const form = new FormData();
+        form.append("file", { uri: varlik.uri, name: varlik.fileName || "video.mp4", type: varlik.mimeType || "video/mp4" });
+        xhr.send(form);
+      });
+      setAsama("yuklendi");
+    } catch {
+      setHata(y.hata); setAsama("hazir");
+    }
+  }
+
+  if (asama === "yuklendi") {
+    return (
+      <View style={[s.kap, { alignItems: "center", justifyContent: "center", padding: 32, paddingBottom: 120 }]}>
+        <Text style={{ fontSize: 44 }}>✅</Text>
+        <Text style={[s.modalBaslik, { marginTop: 12 }]}>{y.tamam}</Text>
+        <Text style={[s.dim, { textAlign: "center", marginTop: 8, lineHeight: 20 }]}>{y.tamamAlt}</Text>
+        <TouchableOpacity style={[s.listemDugme, { marginTop: 20 }]} onPress={() => { setAsama("hazir"); setVarlik(null); setIlerleme(0); }}>
+          <Text style={{ color: t.text, fontWeight: "600", fontSize: 14 }}>{y.yeniden}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView style={s.kap} contentContainerStyle={{ padding: 16, paddingBottom: 130 }} keyboardShouldPersistTaps="handled">
+      <Text style={s.oynaticiAd}>{y.baslik}</Text>
+      <Text style={[s.dim, { fontSize: 14, marginTop: 4 }]}>{y.altyazi}</Text>
+
+      {/* Hedef: yeni içerik ya da mevcut başlığa bölüm ekle */}
+      {basliklar.length > 0 && (
+        <>
+          <Text style={etiketStil}>{y.mevcut}</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
+            <Cip etiket={y.yeni} secili={hedef === "yeni"} sec={() => setHedef("yeni")} />
+            {basliklar.map((b) => (
+              <Cip key={b.id} etiket={b.name} secili={hedef === b.id} sec={() => setHedef(b.id)} />
+            ))}
+          </View>
+        </>
+      )}
+
+      {hedef === "yeni" && (
+        <>
+          {/* Kategori */}
+          <Text style={etiketStil}>{y.kategori}</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
+            <Cip etiket={d.kisaFilm} secili={kind === "kisa_film"} sec={() => setKind("kisa_film")} />
+            <Cip etiket={d.uzunFilm} secili={kind === "uzun_film"} sec={() => setKind("uzun_film")} />
+            <Cip etiket={d.dizi} secili={kind === "dizi"} sec={() => setKind("dizi")} />
+          </View>
+
+          <Text style={etiketStil}>{y.ad}</Text>
+          <TextInput value={ad} onChangeText={setAd} style={alan} placeholder={y.ad} placeholderTextColor={t.dim} />
+
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <View style={{ flex: 2 }}>
+              <Text style={etiketStil}>{y.tur}</Text>
+              <TextInput value={tur} onChangeText={setTur} style={alan} placeholder={y.tur} placeholderTextColor={t.dim} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={etiketStil}>{y.yil}</Text>
+              <TextInput value={yil} onChangeText={setYil} style={alan} keyboardType="number-pad" maxLength={4} />
+            </View>
+          </View>
+
+          <Text style={etiketStil}>{y.aciklamaEt}</Text>
+          <TextInput value={aciklama} onChangeText={setAciklama} style={[alan, { minHeight: 70, textAlignVertical: "top" }]} multiline placeholder={y.aciklamaEt} placeholderTextColor={t.dim} />
+
+          {kind === "dizi" && (
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 16 }}>
+              <Text style={{ color: t.text, fontSize: 14, flex: 1 }}>{y.haftalik}</Text>
+              <Switch value={haftalik} onValueChange={setHaftalik} trackColor={{ true: t.accent, false: t.line }} thumbColor="#0A0A0B" />
+            </View>
+          )}
+        </>
+      )}
+
+      {/* İçerik türü: ana / yapım (BTS) */}
+      <Text style={etiketStil}>{y.icerik}</Text>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
+        <Cip etiket={y.ana} secili={icerikTipi === "ana"} sec={() => setIcerikTipi("ana")} />
+        <Cip etiket={y.yapim} secili={icerikTipi === "yapim"} sec={() => setIcerikTipi("yapim")} />
+      </View>
+
+      {/* Dizi + ana bölüm → sezon/bölüm */}
+      {dizi && icerikTipi === "ana" && (
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <View style={{ flex: 1 }}>
+            <Text style={etiketStil}>{y.sezon}</Text>
+            <TextInput value={sezon} onChangeText={setSezon} style={alan} keyboardType="number-pad" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={etiketStil}>{y.bolum}</Text>
+            <TextInput value={bolum} onChangeText={setBolum} style={alan} keyboardType="number-pad" />
+          </View>
+          <View style={{ flex: 2 }}>
+            <Text style={etiketStil}>{y.bolumAd}</Text>
+            <TextInput value={bolumAd} onChangeText={setBolumAd} style={alan} placeholder={y.bolumAd} placeholderTextColor={t.dim} />
+          </View>
+        </View>
+      )}
+
+      {/* Video seç */}
+      <TouchableOpacity onPress={videoSec} style={{ marginTop: 20, borderWidth: 1, borderColor: varlik ? t.accent : t.line, borderStyle: "dashed", borderRadius: 12, padding: 18, alignItems: "center", backgroundColor: t.surface2 }}>
+        <Ionicons name={varlik ? "checkmark-circle" : "videocam-outline"} size={28} color={varlik ? t.accent : t.dim} />
+        <Text style={{ color: varlik ? t.accent : t.text, fontWeight: "600", fontSize: 14, marginTop: 8 }}>
+          {varlik ? y.videoSecili : y.videoSec}
+        </Text>
+        {varlik?.fileName ? <Text style={[s.dim, { fontSize: 12, marginTop: 3 }]} numberOfLines={1}>{varlik.fileName}</Text> : null}
+      </TouchableOpacity>
+
+      {hata ? <Text style={{ color: t.danger, fontSize: 13, marginTop: 12 }}>{hata}</Text> : null}
+
+      {asama === "gonderiliyor" ? (
+        <View style={{ marginTop: 18 }}>
+          <View style={{ height: 6, backgroundColor: t.surface2, borderRadius: 3, overflow: "hidden" }}>
+            <View style={{ width: `${ilerleme}%`, height: "100%", backgroundColor: t.accent }} />
+          </View>
+          <Text style={[s.dim, { fontSize: 13, marginTop: 8 }]}>{y.yukleniyor} {ilerleme}%</Text>
+        </View>
+      ) : (
+        <TouchableOpacity onPress={gonder} disabled={!varlik} style={[s.izleDugme, { marginTop: 20, alignItems: "center", opacity: varlik ? 1 : 0.5 }]}>
+          <Gradyan />
+          <Text style={s.izleYazi}>{y.gonder}</Text>
+        </TouchableOpacity>
+      )}
+    </ScrollView>
+  );
+}
+
 // ————— STEP 1: ücretsiz oynatma doğrulaması (geçici) —————
 // Cloudflare Stream'e para harcamadan Watch→oynatıcı→gerçek oynatma zincirini kanıtlamak
 // için, cf_uid YOKKEN (demo seed) herkese açık bir test HLS akışı oynatılır. iOS WebView
@@ -457,7 +670,7 @@ export default function App() {
             />
           )}
           {sekme === "upload" && (
-            <Gecit d={d} tip="upload" user={user} girisAc={() => setGirisAcik(true)} />
+            <MobilYukle d={d} user={user} girisAc={() => setGirisAcik(true)} />
           )}
           {sekme === "sanat" && (
             <Tablo d={d} user={user} girisAc={() => setGirisAcik(true)} sekmeModu />
@@ -1435,6 +1648,10 @@ function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac, aramaOdak, festi
 // cf_uid varsa CF thumbnail; yoksa TEMALI POSTER: başlık adından belirlenimci renk +
 // filigran baş harf (+ geniş kartlarda başlık). Video altyapısı GEREKMEZ — gerçek
 // kapak cf_uid gelince otomatik devreye girer. Yeni bağımlılık yok (hsl + View katmanı).
+// İçerik türü (kategori) etiketi: dizi · kısa film · uzun film · film (eski/genel)
+function turAdi(kind, d) {
+  return kind === "dizi" ? d.dizi : kind === "kisa_film" ? d.kisaFilm : kind === "uzun_film" ? d.uzunFilm : d.film;
+}
 function adTonu(ad = "?") {
   let h = 0;
   for (let i = 0; i < ad.length; i++) h = (h * 31 + ad.charCodeAt(i)) % 360;
@@ -1499,7 +1716,7 @@ function AkisKarti({ d, baslik, ac, gomulu }) {
       </View>
       <Text style={s.akisAd}>{baslik.name}</Text>
       <Text style={s.kartAlt}>
-        {[baslik.kind === "dizi" ? d.dizi : d.film, baslik.genre, baslik.year]
+        {[turAdi(baslik.kind, d), baslik.genre, baslik.year]
           .filter(Boolean)
           .join(" · ")}
       </Text>
@@ -1528,7 +1745,7 @@ function SonucSatiri({ d, baslik, ac }) {
           {baslik.name}
         </Text>
         <Text style={s.kartAlt}>
-          {[baslik.kind === "dizi" ? d.dizi : d.film, baslik.genre]
+          {[turAdi(baslik.kind, d), baslik.genre]
             .filter(Boolean)
             .join(" · ")}
         </Text>
@@ -1643,7 +1860,7 @@ function UreticiProfili({ d, id, ac, geri }) {
                 </View>
                 <Text style={{ color: t.text, fontSize: 13, fontWeight: "600", marginTop: 6 }} numberOfLines={1}>{b.name}</Text>
                 <Text style={{ color: t.dim, fontSize: 11, marginTop: 1 }} numberOfLines={1}>
-                  {[b.kind === "dizi" ? d.dizi : d.film, b.genre].filter(Boolean).join(" · ")}
+                  {[turAdi(b.kind, d), b.genre].filter(Boolean).join(" · ")}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -1883,7 +2100,7 @@ function YatayRaf({ d, ad, ogeler }) {
                 {baslik.name}
               </Text>
               <Text style={s.kartAlt}>
-                {[baslik.kind === "dizi" ? d.dizi : d.film, baslik.genre].filter(Boolean).join(" · ")}
+                {[turAdi(baslik.kind, d), baslik.genre].filter(Boolean).join(" · ")}
               </Text>
             </TouchableOpacity>
           );

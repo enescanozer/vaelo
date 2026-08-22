@@ -410,3 +410,24 @@ export async function profilGuncelle(userId, alanlar) {
   const { error } = await supabase.from("profiles").update(alanlar).eq("id", userId);
   if (error) throw error;
 }
+
+// ————— Üretici yükleme (web Upload.jsx ile AYNI akış) —————
+// Üreticinin kendi başlıkları (RLS: creator_id = auth.uid())
+export async function benimBasliklarim(userId) {
+  const { data } = await supabase
+    .from("titles").select("id,name,kind").eq("creator_id", userId)
+    .order("created_at", { ascending: false });
+  return data ?? [];
+}
+// Yeni başlık (taslak; admin yayınlar). kind: kisa_film | uzun_film | dizi
+export async function baslikOlustur(alanlar) {
+  const { data, error } = await supabase.from("titles").insert(alanlar).select("id").single();
+  if (error) throw error;
+  return data.id;
+}
+// create-upload Edge Function → imzalı Cloudflare yükleme URL'i + videos kaydi (status: uploading)
+export async function createUpload(body) {
+  const { data, error } = await supabase.functions.invoke("create-upload", { body });
+  if (error) throw error;
+  return data; // { uploadURL, ... }
+}
