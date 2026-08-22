@@ -405,6 +405,18 @@ export async function getYarismaVerisi(userId) {
 
 // ————— Raflar —————
 // Başlığı raf kartına indirger
+// Admin: analizden hariç tutulacak test içeriğini yönet (is_test flag'i, sql/35).
+export async function getTitlesForTest() {
+  const { data } = await supabase
+    .from("titles")
+    .select("id, name, is_test, status")
+    .order("created_at", { ascending: false });
+  return data ?? [];
+}
+export function setTitleTest(id, isTest) {
+  return supabase.from("titles").update({ is_test: isTest }).eq("id", id);
+}
+
 // İçerik türü (kategori) etiketi: dizi · kısa film · uzun film · film (eski/genel)
 export function turAdi(kind, s) {
   return kind === "dizi"

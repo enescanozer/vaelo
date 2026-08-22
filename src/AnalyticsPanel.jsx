@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { useLang } from "./i18n";
 import { t } from "./theme";
+import { getTitlesForTest, setTitleTest } from "./catalog";
 
 export default function AnalyticsPanel() {
   const { s } = useLang();
@@ -12,6 +13,17 @@ export default function AnalyticsPanel() {
   const [enCok, setEnCok] = useState([]);
   const [tekrar, setTekrar] = useState(null);
   const [hata, setHata] = useState(null);
+  const [basliklar, setBasliklar] = useState([]); // test içeriği yönetimi (is_test)
+
+  useEffect(() => {
+    getTitlesForTest().then(setBasliklar).catch(() => {});
+  }, []);
+
+  async function testDegis(id, yeni) {
+    setBasliklar((eski) => eski.map((b) => (b.id === id ? { ...b, is_test: yeni } : b)));
+    const { error } = await setTitleTest(id, yeni);
+    if (error) setBasliklar((eski) => eski.map((b) => (b.id === id ? { ...b, is_test: !yeni } : b)));
+  }
 
   useEffect(() => {
     Promise.all([
@@ -118,6 +130,45 @@ export default function AnalyticsPanel() {
             </div>
           ))}
           {enCok.length === 0 && <div style={{ color: t.dim, fontSize: 14 }}>{s.analiz.veriYok}</div>}
+        </div>
+      </Bolum>
+
+      {/* Test içeriği yönetimi — is_test true olanlar analizden hariç tutulur (sql/35) */}
+      <Bolum ad={s.analiz.testYonetim}>
+        <div style={{ color: t.dim, fontSize: 13, marginBottom: 12 }}>{s.analiz.testAcikla}</div>
+        <div style={{ display: "grid", gap: 8 }}>
+          {basliklar.map((b) => (
+            <div
+              key={b.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 14,
+                padding: "10px 14px",
+                background: t.surface,
+                border: `1px solid ${b.is_test ? t.danger : t.line}`,
+                borderRadius: 8,
+              }}
+            >
+              <span style={{ fontSize: 14, fontWeight: 600, flex: 1, opacity: b.is_test ? 0.6 : 1 }}>{b.name}</span>
+              <button
+                onClick={() => testDegis(b.id, !b.is_test)}
+                style={{
+                  background: b.is_test ? t.danger : "none",
+                  color: b.is_test ? "#0A0A0B" : t.dim,
+                  border: `1px solid ${b.is_test ? t.danger : t.line}`,
+                  borderRadius: 999,
+                  padding: "6px 14px",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                {b.is_test ? "TEST" : "—"}
+              </button>
+            </div>
+          ))}
+          {basliklar.length === 0 && <div style={{ color: t.dim, fontSize: 14 }}>{s.analiz.veriYok}</div>}
         </div>
       </Bolum>
     </div>
