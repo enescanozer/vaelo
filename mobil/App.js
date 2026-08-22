@@ -7,10 +7,12 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
+  Dimensions,
   FlatList,
   KeyboardAvoidingView,
   Linking,
   Modal,
+  PanResponder,
   Platform,
   SafeAreaView,
   ScrollView,
@@ -124,6 +126,40 @@ function Gradyan() {
       end={{ x: 1, y: 1 }}
       style={StyleSheet.absoluteFill}
     />
+  );
+}
+
+// ————— Kaydırarak geri (Instagram/iOS tarzı) —————
+// Sol kenardan (≤32px) sağa yatay kaydırma → ekran parmağı izler, eşiği geçince geri.
+// Yalnız yatay kenar hareketinde devreye girer → dikey kaydırma/WebView/raflarla çakışmaz.
+function KaydirGeri({ onGeri, children }) {
+  const genislik = Dimensions.get("window").width;
+  const tx = useRef(new Animated.Value(0)).current;
+  const responder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (e, g) => {
+        const baslangicX = e.nativeEvent.pageX - g.dx; // dokunuşun başladığı x
+        return baslangicX <= 32 && g.dx > 6 && Math.abs(g.dx) > Math.abs(g.dy) * 1.6;
+      },
+      onPanResponderMove: (e, g) => {
+        if (g.dx > 0) tx.setValue(g.dx);
+      },
+      onPanResponderRelease: (e, g) => {
+        if (g.dx > genislik * 0.33 || g.vx > 0.5) {
+          Animated.timing(tx, { toValue: genislik, duration: 180, useNativeDriver: true }).start(() => onGeri());
+        } else {
+          Animated.spring(tx, { toValue: 0, useNativeDriver: true, bounciness: 0 }).start();
+        }
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(tx, { toValue: 0, useNativeDriver: true, bounciness: 0 }).start();
+      },
+    })
+  ).current;
+  return (
+    <Animated.View style={{ flex: 1, transform: [{ translateX: tx }] }} {...responder.panHandlers}>
+      {children}
+    </Animated.View>
   );
 }
 
@@ -1057,52 +1093,62 @@ export default function App() {
         </>
       )}
       {gorunum.tip === "tablo" && (
-        <Tablo
-          d={d}
-          user={user}
-          girisAc={() => setGirisAcik(true)}
-          geri={() => setGorunum({ tip: "ana" })}
-        />
+        <KaydirGeri onGeri={() => setGorunum({ tip: "ana" })}>
+          <Tablo
+            d={d}
+            user={user}
+            girisAc={() => setGirisAcik(true)}
+            geri={() => setGorunum({ tip: "ana" })}
+          />
+        </KaydirGeri>
       )}
       {gorunum.tip === "detay" && (
-        <Detay
-          d={d}
-          id={gorunum.id}
-          user={user}
-          girisAc={() => setGirisAcik(true)}
-          oynat={oynat}
-          geri={() => setGorunum({ tip: "ana" })}
-        />
+        <KaydirGeri onGeri={() => setGorunum({ tip: "ana" })}>
+          <Detay
+            d={d}
+            id={gorunum.id}
+            user={user}
+            girisAc={() => setGirisAcik(true)}
+            oynat={oynat}
+            geri={() => setGorunum({ tip: "ana" })}
+          />
+        </KaydirGeri>
       )}
       {gorunum.tip === "oynat" && (
-        <Oynatici
-          d={d}
-          dil={dil}
-          video={gorunum.video}
-          baslik={gorunum.baslik}
-          user={user}
-          altyaziDil={ayarlar.altyaziAcik ? ayarlar.altyaziDil || dil : ""}
-          oynat={oynat}
-          girisAc={() => setGirisAcik(true)}
-          ureticiAc={ureticiAc}
-          geri={() => setGorunum({ tip: "ana" })}
-        />
+        <KaydirGeri onGeri={() => setGorunum({ tip: "ana" })}>
+          <Oynatici
+            d={d}
+            dil={dil}
+            video={gorunum.video}
+            baslik={gorunum.baslik}
+            user={user}
+            altyaziDil={ayarlar.altyaziAcik ? ayarlar.altyaziDil || dil : ""}
+            oynat={oynat}
+            girisAc={() => setGirisAcik(true)}
+            ureticiAc={ureticiAc}
+            geri={() => setGorunum({ tip: "ana" })}
+          />
+        </KaydirGeri>
       )}
       {gorunum.tip === "uretici" && (
-        <UreticiProfili
-          d={d}
-          id={gorunum.id}
-          ac={(id) => setGorunum({ tip: "detay", id })}
-          geri={() => setGorunum({ tip: "ana" })}
-        />
+        <KaydirGeri onGeri={() => setGorunum({ tip: "ana" })}>
+          <UreticiProfili
+            d={d}
+            id={gorunum.id}
+            ac={(id) => setGorunum({ tip: "detay", id })}
+            geri={() => setGorunum({ tip: "ana" })}
+          />
+        </KaydirGeri>
       )}
       {gorunum.tip === "yarisma" && (
-        <MobilYarisma
-          d={d}
-          user={user}
-          girisAc={() => setGirisAcik(true)}
-          geri={() => setGorunum({ tip: "ana" })}
-        />
+        <KaydirGeri onGeri={() => setGorunum({ tip: "ana" })}>
+          <MobilYarisma
+            d={d}
+            user={user}
+            girisAc={() => setGirisAcik(true)}
+            geri={() => setGorunum({ tip: "ana" })}
+          />
+        </KaydirGeri>
       )}
       {girisAcik && <AuthModal d={d} kapat={() => setGirisAcik(false)} />}
       {ayarlarAcik && (
