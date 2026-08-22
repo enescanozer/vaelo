@@ -51,7 +51,7 @@ function mesajParcalari(metin, onMention) {
   });
 }
 
-export default function Topluluk({ d, dil, oda, user, girisAc, gorunur, kapat }) {
+export default function Topluluk({ d, dil, oda, user, girisAc, gorunur, kapat, inline }) {
   const sh = d.sohbet;
   const inset = useSafeAreaInsets();
   const [mesajlar, setMesajlar] = useState(null);
@@ -130,6 +130,66 @@ export default function Topluluk({ d, dil, oda, user, girisAc, gorunur, kapat })
   }
   const mentionTikla = (nick) => setPrefill({ metin: `@${nick} `, nonce: Date.now() });
 
+  // Mesaj listesi (flex:1 → hem Modal'da hem inline sabit-yükseklik kutuda çalışır)
+  const liste = mesajlar === null ? (
+    <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><ActivityIndicator color={C.accent} /></View>
+  ) : mesajlar.length === 0 ? (
+    <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 32 }}>
+      <Text style={{ color: C.dim, fontSize: 14, textAlign: "center" }}>{sh.bos}</Text>
+    </View>
+  ) : (
+    <FlatList
+      ref={listeRef}
+      data={mesajlar}
+      keyExtractor={(m) => String(m.id)}
+      contentContainerStyle={{ padding: 16, gap: 14 }}
+      keyboardShouldPersistTaps="handled"
+      nestedScrollEnabled
+      onContentSizeChange={() => listeRef.current?.scrollToEnd({ animated: false })}
+      onScrollToIndexFailed={(info) => {
+        listeRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: true });
+      }}
+      renderItem={({ item }) => (
+        <SohbetMesaj
+          m={item} user={user} sh={sh} dil={dil}
+          onBegen={() => begenDegis(item)}
+          onYanitla={() => setYanitHedef(item)}
+          onScrollTo={mesajaScroll}
+          onMention={mentionTikla}
+          onSil={mesajSil}
+          onDuzenle={mesajDuzenle}
+        />
+      )}
+    />
+  );
+  const yazac = (
+    <SohbetYazac
+      sh={sh} dil={dil} oda={oda} user={user} girisAc={girisAc} kilitli={kilitli} ekle={ekle}
+      yanitHedef={yanitHedef} yanitIptal={() => setYanitHedef(null)} prefill={prefill}
+      bottomInset={inline ? 0 : inset.bottom}
+    />
+  );
+
+  // Inline: yeni sayfa AÇMAZ — çağıran ScrollView'ın içinde, sayfanın altına doğru açılır.
+  // Video ScrollView'ın dışında sabit olduğundan burada da video DURMAZ.
+  if (inline) {
+    if (!gorunur) return null;
+    return (
+      <View style={{ marginTop: 22, borderTopWidth: 1, borderTopColor: C.line, paddingTop: 16 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
+          <Text style={{ flex: 1, color: C.text, fontSize: 17, fontWeight: "800" }}>{sh.baslik}</Text>
+          <TouchableOpacity onPress={kapat} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Text style={{ color: C.dim, fontSize: 20 }}>✕</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={{ height: 380, borderWidth: 1, borderColor: C.line, borderRadius: 12, overflow: "hidden", backgroundColor: C.surface }}>
+          {liste}
+        </View>
+        {yazac}
+      </View>
+    );
+  }
+
   return (
     <Modal visible={gorunur} animationType="slide" transparent={false} onRequestClose={kapat} statusBarTranslucent>
       <View style={{ flex: 1, backgroundColor: C.bg, paddingTop: inset.top }}>
@@ -142,42 +202,8 @@ export default function Topluluk({ d, dil, oda, user, girisAc, gorunur, kapat })
         </View>
 
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={inset.top}>
-          {mesajlar === null ? (
-            <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><ActivityIndicator color={C.accent} /></View>
-          ) : mesajlar.length === 0 ? (
-            <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 32 }}>
-              <Text style={{ color: C.dim, fontSize: 14, textAlign: "center" }}>{sh.bos}</Text>
-            </View>
-          ) : (
-            <FlatList
-              ref={listeRef}
-              data={mesajlar}
-              keyExtractor={(m) => String(m.id)}
-              contentContainerStyle={{ padding: 16, gap: 14 }}
-              keyboardShouldPersistTaps="handled"
-              onContentSizeChange={() => listeRef.current?.scrollToEnd({ animated: false })}
-              onScrollToIndexFailed={(info) => {
-                listeRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: true });
-              }}
-              renderItem={({ item }) => (
-                <SohbetMesaj
-                  m={item} user={user} sh={sh} dil={dil}
-                  onBegen={() => begenDegis(item)}
-                  onYanitla={() => setYanitHedef(item)}
-                  onScrollTo={mesajaScroll}
-                  onMention={mentionTikla}
-                  onSil={mesajSil}
-                  onDuzenle={mesajDuzenle}
-                />
-              )}
-            />
-          )}
-
-          <SohbetYazac
-            sh={sh} dil={dil} oda={oda} user={user} girisAc={girisAc} kilitli={kilitli} ekle={ekle}
-            yanitHedef={yanitHedef} yanitIptal={() => setYanitHedef(null)} prefill={prefill}
-            bottomInset={inset.bottom}
-          />
+          {liste}
+          {yazac}
         </KeyboardAvoidingView>
       </View>
     </Modal>

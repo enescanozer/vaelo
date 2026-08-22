@@ -1501,7 +1501,7 @@ function MobilPuan({ video, user, girisAc, d }) {
           </Text>
         )}
       </View>
-      {/* 5+5 iki satır: her buton flex:1 kare → tüm ekranlara taşmadan sığar */}
+      {/* 5+5 iki satır: her buton flex:1, sabit kısa yükseklik → kompakt, taşmaz */}
       <View style={{ gap: 6 }}>
         {[[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]].map((satir, si) => (
           <View key={si} style={{ flexDirection: "row", gap: 6 }}>
@@ -1514,7 +1514,7 @@ function MobilPuan({ video, user, girisAc, d }) {
                   activeOpacity={0.8}
                   style={{
                     flex: 1,
-                    aspectRatio: 1,
+                    height: 40,
                     borderRadius: 8,
                     alignItems: "center",
                     justifyContent: "center",
@@ -1524,7 +1524,7 @@ function MobilPuan({ video, user, girisAc, d }) {
                   }}
                 >
                   {secili && <Gradyan />}
-                  <Text style={{ color: secili ? "#0A0A0B" : t.text, fontWeight: "700", fontSize: 15 }}>{p}</Text>
+                  <Text style={{ color: secili ? "#0A0A0B" : t.text, fontWeight: "700", fontSize: 14 }}>{p}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -2282,9 +2282,15 @@ const VideoOynatici = memo(function VideoOynatici({ videoId, cfUid, altyaziDil }
 });
 
 function Oynatici({ d, dil, video, baslik, user, altyaziDil, oynat, geri, girisAc, ureticiAc }) {
-  const [sohbetAcik, setSohbetAcik] = useState(false); // Topluluk modalı (bölüm düzeyi oda)
+  const [sohbetAcik, setSohbetAcik] = useState(false); // Topluluk: sayfa içinde (inline) açılır
   const [ekli, setEkli] = useState(null); // Listem: null bilinmiyor (Detay'dan taşındı)
   const [uretici, setUretici] = useState(null); // üretici kartı: ad + sosyal (Detay'dan taşındı)
+  const kaydirRef = useRef(null); // Topluluk açılınca sayfayı altına kaydır
+  useEffect(() => {
+    if (!sohbetAcik) return;
+    const z = setTimeout(() => kaydirRef.current?.scrollToEnd({ animated: true }), 250);
+    return () => clearTimeout(z);
+  }, [sohbetAcik]);
   // Açılışta izlenme kaydı (girişliyse user_id ile → "devam et"; bölüm değişince yenisi)
   useEffect(() => {
     logWatch(video.id, user?.id ?? null);
@@ -2323,7 +2329,7 @@ function Oynatici({ d, dil, video, baslik, user, altyaziDil, oynat, geri, girisA
       <VideoOynatici videoId={video.id} cfUid={video.cf_uid} altyaziDil={altyaziDil} />
 
       {/* Altta kaydırılabilir bilgi + bölümler */}
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 48 }}>
+      <ScrollView ref={kaydirRef} contentContainerStyle={{ padding: 16, paddingBottom: 48 }}>
         <Text style={s.oynaticiAd}>{baslik.name}</Text>
         <Text style={[s.kartAlt, { marginTop: 4 }]}>
           {[
@@ -2337,7 +2343,7 @@ function Oynatici({ d, dil, video, baslik, user, altyaziDil, oynat, geri, girisA
             .join(" · ")}
         </Text>
 
-        {/* Aksiyon satırı: Listem + Topluluk (Modal overlay → video durmaz) */}
+        {/* Aksiyon satırı: Listem + Topluluk (sayfa içinde inline açılır → video durmaz) */}
         <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap", alignItems: "center", marginTop: 14 }}>
           {(user ? ekli !== null : true) && (
             <TouchableOpacity style={s.listemDugme} onPress={listemDegistir}>
@@ -2346,8 +2352,11 @@ function Oynatici({ d, dil, video, baslik, user, altyaziDil, oynat, geri, girisA
               </Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={s.listemDugme} onPress={() => setSohbetAcik(true)}>
-            <Text style={{ color: t.text, fontSize: 14, fontWeight: "600" }}>💬 {d.sohbet.baslik}</Text>
+          <TouchableOpacity
+            style={[s.listemDugme, sohbetAcik && { borderColor: t.accent }]}
+            onPress={() => setSohbetAcik((v) => !v)}
+          >
+            <Text style={{ color: sohbetAcik ? t.accent : t.text, fontSize: 14, fontWeight: "600" }}>💬 {d.sohbet.baslik}</Text>
           </TouchableOpacity>
         </View>
 
@@ -2456,12 +2465,14 @@ function Oynatici({ d, dil, video, baslik, user, altyaziDil, oynat, geri, girisA
             })}
           </View>
         )}
-      </ScrollView>
 
-      <Topluluk
-        d={d} dil={dil} oda={`ep:${video.id}`} user={user}
-        girisAc={girisAc} gorunur={sohbetAcik} kapat={() => setSohbetAcik(false)}
-      />
+        {/* Topluluk — sayfa içinde (inline) sayfanın altına doğru açılır (yeni sayfa açmaz) */}
+        <Topluluk
+          inline
+          d={d} dil={dil} oda={`ep:${video.id}`} user={user}
+          girisAc={girisAc} gorunur={sohbetAcik} kapat={() => setSohbetAcik(false)}
+        />
+      </ScrollView>
     </View>
   );
 }
