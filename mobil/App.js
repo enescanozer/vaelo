@@ -1594,39 +1594,60 @@ function UreticiProfili({ d, id, ac, geri }) {
     <ScrollView style={s.kap} contentContainerStyle={{ padding: 16, paddingBottom: 48 }}>
       <GeriButon d={d} geri={geri} />
 
-      {/* Başlık: baş harf avatarı + ad */}
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginTop: 16 }}>
-        <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: t.surface2, borderWidth: 1, borderColor: t.line, alignItems: "center", justifyContent: "center" }}>
-          <Text style={{ color: t.accent, fontSize: 30, fontWeight: "800" }}>{(ad?.[0] || "?").toUpperCase()}</Text>
+      {/* Başlık: gradient halkalı avatar + ad + içerik sayacı */}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginTop: 16 }}>
+        <View style={{ width: 80, height: 80, borderRadius: 40, overflow: "hidden", alignItems: "center", justifyContent: "center" }}>
+          <Gradyan />
+          <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: t.surface2, alignItems: "center", justifyContent: "center" }}>
+            <Text style={{ color: t.accent, fontSize: 30, fontWeight: "800" }}>{(ad?.[0] || "?").toUpperCase()}</Text>
+          </View>
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={[s.dim, { fontSize: 12 }]}>{d.uretici}</Text>
-          <Text style={{ color: t.text, fontSize: 20, fontWeight: "800" }} numberOfLines={2}>{ad}</Text>
+          <Text style={{ color: t.accent, fontSize: 11, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase" }}>{d.uretici}</Text>
+          <Text style={{ color: t.text, fontSize: 22, fontWeight: "800", marginTop: 2 }} numberOfLines={2}>{ad}</Text>
+          {icerikler !== null && (
+            <View style={{ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, marginTop: 8, paddingHorizontal: 11, paddingVertical: 4, borderRadius: 999, backgroundColor: t.surface2, borderWidth: 1, borderColor: t.line }}>
+              <Text style={{ color: t.text, fontWeight: "800", fontSize: 13 }}>{icerikler.length}</Text>
+              <Text style={{ fontSize: 11 }}>🎬</Text>
+            </View>
+          )}
         </View>
       </View>
 
       {!!uretici?.bio && (
-        <Text style={[s.dim, { fontSize: 14, lineHeight: 20, marginTop: 14 }]}>{uretici.bio}</Text>
+        <Text style={{ color: t.text, opacity: 0.85, fontSize: 14, lineHeight: 20, marginTop: 16 }}>{uretici.bio}</Text>
       )}
 
       {linkler.length > 0 && (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
           {linkler.map(([p, etiket, ham]) => (
             <TouchableOpacity key={p} onPress={() => Linking.openURL(sosyalUrl(p, ham))} style={s.sosyalPill}>
-              <Text style={s.sosyalPillYazi}>{etiket}</Text>
+              <Text style={s.sosyalPillYazi}>{etiket} ↗</Text>
             </TouchableOpacity>
           ))}
         </View>
       )}
 
-      {/* Ürettiği içerikler */}
+      {/* Ürettiği içerikler — 2 sütun poster ızgarası (Instagram/TikTok hissi) */}
       <View style={{ borderTopWidth: 1, borderTopColor: t.line, marginTop: 22, paddingTop: 18 }}>
         {icerikler === null ? (
           <ActivityIndicator color={t.accent} />
         ) : icerikler.length === 0 ? (
-          <Text style={s.dim}>—</Text>
+          <Text style={[s.dim, { textAlign: "center", paddingVertical: 24 }]}>—</Text>
         ) : (
-          icerikler.map((b) => <SonucSatiri key={String(b.id)} d={d} baslik={b} ac={ac} />)
+          <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
+            {icerikler.map((b) => (
+              <TouchableOpacity key={String(b.id)} style={{ width: "48%", marginBottom: 16 }} onPress={() => ac(b.id)} activeOpacity={0.85}>
+                <View style={{ width: "100%", aspectRatio: 16 / 9, borderRadius: 10, overflow: "hidden", backgroundColor: t.surface2 }}>
+                  <Kapak baslik={b} harf={30} />
+                </View>
+                <Text style={{ color: t.text, fontSize: 13, fontWeight: "600", marginTop: 6 }} numberOfLines={1}>{b.name}</Text>
+                <Text style={{ color: t.dim, fontSize: 11, marginTop: 1 }} numberOfLines={1}>
+                  {[b.kind === "dizi" ? d.dizi : d.film, b.genre].filter(Boolean).join(" · ")}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         )}
       </View>
     </ScrollView>

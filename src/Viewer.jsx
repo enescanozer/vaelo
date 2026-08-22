@@ -1213,21 +1213,30 @@ function UreticiProfili({ id, ac, geri }) {
         <GeriButon geri={geri} />
       </div>
 
-      {/* Başlık: büyük avatar + ad + bio + sosyal */}
-      <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
-        <Avatar ad={uretici?.display_name || "?"} boyut={84} />
-        <div style={{ minWidth: 0 }}>
-          <div style={{ color: t.accent, fontSize: 11, fontWeight: 700, letterSpacing: 0.7, textTransform: "uppercase" }}>
+      {/* Başlık: gradient halkalı avatar + ad + içerik sayacı */}
+      <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+        <div style={{ padding: 3, borderRadius: "50%", background: t.gradient, flexShrink: 0, boxShadow: "0 8px 28px rgba(0,0,0,0.35)" }}>
+          <div style={{ padding: 3, borderRadius: "50%", background: t.bg }}>
+            <Avatar ad={uretici?.display_name || "?"} boyut={96} />
+          </div>
+        </div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ color: t.accent, fontSize: 11, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase" }}>
             {s.kesfet.uretici}
           </div>
-          <div style={{ fontFamily: t.display, fontWeight: 800, fontSize: "clamp(22px, 4vw, 30px)", marginTop: 2 }}>
+          <div style={{ fontFamily: t.display, fontWeight: 800, fontSize: "clamp(24px, 4.5vw, 36px)", lineHeight: 1.08, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis" }}>
             {uretici?.display_name || s.kesfet.uretici}
           </div>
+          {icerikler !== null && (
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 12, padding: "5px 13px", borderRadius: 999, background: t.surface2, border: `1px solid ${t.line}`, fontSize: 13, color: t.dim }}>
+              <span style={{ color: t.text, fontWeight: 800 }}>{icerikler.length}</span> 🎬
+            </div>
+          )}
         </div>
       </div>
 
       {uretici?.bio && (
-        <div style={{ color: t.dim, fontSize: 15, lineHeight: 1.6, marginTop: 16, whiteSpace: "pre-wrap", maxWidth: 640 }}>
+        <div style={{ color: t.text, opacity: 0.82, fontSize: 15, lineHeight: 1.6, marginTop: 18, whiteSpace: "pre-wrap", maxWidth: 620 }}>
           {uretici.bio}
         </div>
       )}
@@ -1240,9 +1249,11 @@ function UreticiProfili({ id, ac, geri }) {
               href={sosyalUrl(p, ham)}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ fontSize: 12, color: t.text, textDecoration: "none", padding: "7px 14px", border: `1px solid ${t.line}`, borderRadius: 999, background: t.surface }}
+              style={{ fontSize: 13, fontWeight: 600, color: t.text, textDecoration: "none", padding: "8px 15px", border: `1px solid ${t.line}`, borderRadius: 999, background: t.surface2, transition: "border-color .15s" }}
+              onMouseEnter={(e) => (e.currentTarget.style.borderColor = t.accent)}
+              onMouseLeave={(e) => (e.currentTarget.style.borderColor = t.line)}
             >
-              {etiket}
+              {etiket} ↗
             </a>
           ))}
         </div>
