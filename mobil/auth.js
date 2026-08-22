@@ -42,14 +42,13 @@ function urlParametreleri(url) {
 }
 
 // Google ile giriş (Expo): Supabase OAuth URL'ini alır, sistem tarayıcısında açar,
-// dönüşteki oturumu (token ya da code) supabase-js'e yazar. Redirect ORTAMA GÖRE:
-// Expo Go → exp://<ip>:<port>/--/auth-callback, gerçek build → vaelo://auth-callback
-// (scheme zorlanmaz → openAuthSessionAsync her iki ortamda da dönüşü yakalar).
-// ÇALIŞMASI İÇİN: Supabase → Auth → URL Configuration → Redirect URLs allowlist'inde
-// bu redirect URL (Expo Go'da exp://..., build'de vaelo://auth-callback) kayıtlı olmalı;
-// yoksa Supabase Site URL'e (web'e) düşürür.
+// dönüşteki oturumu (token ya da code) supabase-js'e yazar.
+// Redirect SABİT: vaelo://auth-callback. openAuthSessionAsync bu özel şemayı OTURUM İÇİNDE
+// yakalar (ASWebAuthenticationSession callbackURLScheme=vaelo) → Expo Go'da da, uygulama
+// bu şemaya kayıtlı olmasa bile çalışır. IP/port'a bağlı exp:// adresine gerek yok.
+// ÇALIŞMASI İÇİN: Supabase allowlist'inde "vaelo://auth-callback" kayıtlı (zaten var).
 export async function signInWithGoogle() {
-  const redirectUrl = AuthSession.makeRedirectUri({ path: "auth-callback" });
+  const redirectUrl = "vaelo://auth-callback";
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: { redirectTo: redirectUrl, skipBrowserRedirect: true },

@@ -59,6 +59,8 @@ import {
   profilGetir,
   takmaAdAyarla,
   profilGuncelle,
+  getBenimIceriklerim,
+  icerikSil,
   benimBasliklarim,
   baslikOlustur,
   createUpload,
@@ -204,15 +206,18 @@ function ProfilEkrani({ d, user, dil, setDil, ayarlar, setAyarlar, girisAc }) {
     </TouchableOpacity>
   );
 
-  // Profil düzenleme (ad + bio + sosyal) — web Profile.jsx ile AYNI backend (set-nickname + profiles)
+  // Profil: görüntüleme/düzenleme modu + kendi içerikleri (web Profile.jsx ile aynı backend)
   const [profil, setProfil] = useState(null);
+  const [duzenle, setDuzenle] = useState(false);
   const [ad, setAd] = useState("");
   const [bio, setBio] = useState("");
   const [sosyal, setSosyal] = useState({ instagram: "", tiktok: "", youtube: "", twitter: "", website: "" });
   const [kayd, setKayd] = useState(null); // null | "kaydediliyor" | "oldu"
   const [pHata, setPHata] = useState(null);
+  const [icerikler, setIcerikler] = useState([]); // üreticinin kendi içerikleri
+  const [siliniyor, setSiliniyor] = useState(null); // silinen title id
   useEffect(() => {
-    if (!user) { setProfil(null); return; }
+    if (!user) { setProfil(null); setIcerikler([]); return; }
     let aktif = true;
     profilGetir(user.id).then((pr) => {
       if (!aktif) return;
@@ -221,6 +226,7 @@ function ProfilEkrani({ d, user, dil, setDil, ayarlar, setAyarlar, girisAc }) {
       setBio(pr.bio ?? "");
       setSosyal({ instagram: pr.instagram ?? "", tiktok: pr.tiktok ?? "", youtube: pr.youtube ?? "", twitter: pr.twitter ?? "", website: pr.website ?? "" });
     }).catch(() => {});
+    getBenimIceriklerim(user.id).then((v) => aktif && setIcerikler(v)).catch(() => {});
     return () => { aktif = false; };
   }, [user?.id]);
   const uretici = profil?.role === "creator" || profil?.role === "admin";
@@ -230,12 +236,10 @@ function ProfilEkrani({ d, user, dil, setDil, ayarlar, setAyarlar, girisAc }) {
     if (!user || kayd === "kaydediliyor") return;
     setKayd("kaydediliyor"); setPHata(null);
     const yeniAd = ad.trim();
-    // Ad değiştiyse ya da hiç seçilmemişse: doğrulama+moderasyon+tekillik (set-nickname)
     if (yeniAd !== (profil?.display_name ?? "") || !profil?.display_name_chosen) {
       const r = await takmaAdAyarla(yeniAd, (dil || "en").slice(0, 2));
       if (r.hata) { setKayd(null); setPHata(p.hata[r.kod] ?? p.hata.sunucu); return; }
     }
-    // Bio + sosyal yalnız üretici/admin (izleyicide anlamı yok) — self-update
     if (uretici) {
       const bosNull = (x) => { const v = (x || "").trim(); return v || null; };
       try {
@@ -246,8 +250,26 @@ function ProfilEkrani({ d, user, dil, setDil, ayarlar, setAyarlar, girisAc }) {
         });
       } catch { setKayd(null); setPHata(p.hata.sunucu); return; }
     }
-    setProfil((e) => ({ ...(e || {}), display_name: yeniAd, display_name_chosen: true }));
+    setProfil((e) => ({ ...(e || {}), display_name: yeniAd, display_name_chosen: true, bio, ...sosyal }));
     setKayd("oldu");
+    setDuzenle(false);
+  }
+  function iptal() {
+    setAd(profil?.display_name ?? ""); setBio(profil?.bio ?? "");
+    setSosyal({ instagram: profil?.instagram ?? "", tiktok: profil?.tiktok ?? "", youtube: profil?.youtube ?? "", twitter: profil?.twitter ?? "", website: profil?.website ?? "" });
+    setPHata(null); setKayd(null); setDuzenle(false);
+  }
+  // Silme: onay dialogu → cascade (videolar/izlenme/oy/listem/yarışma) sql/38
+  function icerikSilOnay(baslik) {
+    Alert.alert(baslik.name, p.silOnay, [
+      { text: p.iptal, style: "cancel" },
+      { text: p.sil, style: "destructive", onPress: async () => {
+        setSiliniyor(baslik.id);
+        const { error } = await icerikSil(baslik.id);
+        if (!error) setIcerikler((l) => l.filter((x) => x.id !== baslik.id));
+        setSiliniyor(null);
+      } },
+    ]);
   }
 
   return (
@@ -260,7 +282,7 @@ function ProfilEkrani({ d, user, dil, setDil, ayarlar, setAyarlar, girisAc }) {
       />
       {user ? (
         <>
-          {/* Hesap başlığı: gradient halkalı avatar + ad/e-posta */}
+          {/* Üst bölüm: avatar + ad + üretici rozeti + içerik sayısı + Düzenle (herkes görür) */}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
             <View style={{ width: 54, height: 54, borderRadius: 27, overflow: "hidden", alignItems: "center", justifyContent: "center" }}>
               <Gradyan />
@@ -270,41 +292,91 @@ function ProfilEkrani({ d, user, dil, setDil, ayarlar, setAyarlar, girisAc }) {
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={{ color: t.text, fontSize: 16, fontWeight: "700" }} numberOfLines={1}>{ad || user.email}</Text>
-              <Text style={[s.dim, { fontSize: 12 }]} numberOfLines={1}>{ad ? user.email : uretici ? d.uretici : ""}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2, flexWrap: "wrap" }}>
+                {uretici && <Text style={{ color: t.accent, fontSize: 11, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase" }}>{d.uretici}</Text>}
+                {uretici ? (
+                  <Text style={[s.dim, { fontSize: 12 }]}>{icerikler.length} 🎬</Text>
+                ) : (
+                  <Text style={[s.dim, { fontSize: 12 }]} numberOfLines={1}>{user.email}</Text>
+                )}
+              </View>
             </View>
+            {!duzenle && (
+              <TouchableOpacity onPress={() => setDuzenle(true)} style={s.listemDugme} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                <Text style={{ color: t.text, fontSize: 13, fontWeight: "600" }}>✏ {p.duzenle}</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
-          {/* Görünen ad — herkes */}
-          <Text style={s.ayarBolum}>{p.gorunenAd}</Text>
-          <TextInput value={ad} onChangeText={(x) => { setAd(x); setKayd(null); }} style={alan}
-            placeholder={p.gorunenAd} placeholderTextColor={t.dim} autoCapitalize="none" maxLength={20} />
-
-          {/* Üretici profili — kart içinde gruplu (bio + sosyal), yalnız üretici/admin */}
-          {uretici && (
-            <View style={{ marginTop: 18, padding: 14, backgroundColor: t.surface, borderWidth: 1, borderColor: t.line, borderRadius: 12 }}>
-              <Text style={{ color: t.accent, fontSize: 11, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase" }}>{d.uretici}</Text>
-              <Text style={[s.dim, { fontSize: 12, marginTop: 10 }]}>{p.bio}</Text>
-              <TextInput value={bio} onChangeText={(x) => { setBio(x); setKayd(null); }}
-                style={[alan, { minHeight: 72, textAlignVertical: "top", marginTop: 4 }]} multiline maxLength={300}
-                placeholder={p.bio} placeholderTextColor={t.dim} />
-              <Text style={[s.dim, { fontSize: 12, marginTop: 12 }]}>{p.sosyal}</Text>
-              {[["instagram", "Instagram"], ["tiktok", "TikTok"], ["youtube", "YouTube"], ["twitter", "X"], ["website", d.website]].map(([k, lbl]) => (
-                <TextInput key={k} value={sosyal[k]} onChangeText={(x) => { setSosyal((sc) => ({ ...sc, [k]: x })); setKayd(null); }}
-                  style={[alan, { marginTop: 6 }]} placeholder={lbl} placeholderTextColor={t.dim} autoCapitalize="none" autoCorrect={false} />
-              ))}
-            </View>
+          {duzenle ? (
+            /* Düzenleme modu (inline toggle): ad + (üretici: bio/sosyal) + Kaydet/İptal */
+            <>
+              <Text style={s.ayarBolum}>{p.gorunenAd}</Text>
+              <TextInput value={ad} onChangeText={(x) => { setAd(x); setKayd(null); }} style={alan}
+                placeholder={p.gorunenAd} placeholderTextColor={t.dim} autoCapitalize="none" maxLength={20} />
+              {uretici && (
+                <View style={{ marginTop: 18, padding: 14, backgroundColor: t.surface, borderWidth: 1, borderColor: t.line, borderRadius: 12 }}>
+                  <Text style={{ color: t.accent, fontSize: 11, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase" }}>{d.uretici}</Text>
+                  <Text style={[s.dim, { fontSize: 12, marginTop: 10 }]}>{p.bio}</Text>
+                  <TextInput value={bio} onChangeText={(x) => { setBio(x); setKayd(null); }}
+                    style={[alan, { minHeight: 72, textAlignVertical: "top", marginTop: 4 }]} multiline maxLength={300}
+                    placeholder={p.bio} placeholderTextColor={t.dim} />
+                  <Text style={[s.dim, { fontSize: 12, marginTop: 12 }]}>{p.sosyal}</Text>
+                  {[["instagram", "Instagram"], ["tiktok", "TikTok"], ["youtube", "YouTube"], ["twitter", "X"], ["website", d.website]].map(([k, lbl]) => (
+                    <TextInput key={k} value={sosyal[k]} onChangeText={(x) => { setSosyal((sc) => ({ ...sc, [k]: x })); setKayd(null); }}
+                      style={[alan, { marginTop: 6 }]} placeholder={lbl} placeholderTextColor={t.dim} autoCapitalize="none" autoCorrect={false} />
+                  ))}
+                </View>
+              )}
+              {pHata && <Text style={{ color: t.danger, fontSize: 13, marginTop: 10 }}>{pHata}</Text>}
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
+                <TouchableOpacity style={[s.izleDugme, { opacity: kayd === "kaydediliyor" ? 0.6 : 1 }]} onPress={kaydet} disabled={kayd === "kaydediliyor"}>
+                  <Gradyan />
+                  <Text style={s.izleYazi}>{p.kaydet}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.listemDugme} onPress={iptal}>
+                  <Text style={{ color: t.dim, fontSize: 14, fontWeight: "600" }}>{p.iptal}</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            /* İçerik bölümü: üreticinin yüklediği içerikler + sil (yalnız kendi profili) */
+            uretici ? (
+              <View style={{ marginTop: 22 }}>
+                {icerikler.length === 0 ? (
+                  <Text style={[s.dim, { textAlign: "center", paddingVertical: 20 }]}>{p.icerikYok}</Text>
+                ) : (
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
+                    {icerikler.map((b) => (
+                      <View key={String(b.id)} style={{ width: "48%", marginBottom: 16, opacity: siliniyor === b.id ? 0.4 : 1 }}>
+                        <View style={{ width: "100%", aspectRatio: 16 / 9, borderRadius: 10, overflow: "hidden", backgroundColor: t.surface2 }}>
+                          <Kapak baslik={b} harf={28} />
+                        </View>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 }}>
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text style={{ color: t.text, fontSize: 13, fontWeight: "600" }} numberOfLines={1}>{b.name}</Text>
+                            <Text style={{ color: t.dim, fontSize: 11 }} numberOfLines={1}>
+                              {turAdi(b.kind, d)}{b.status !== "published" ? ` · ${d.studyo.durum[b.status] ?? b.status}` : ""}
+                            </Text>
+                          </View>
+                          <TouchableOpacity onPress={() => icerikSilOnay(b)} disabled={siliniyor === b.id} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                            <Ionicons name="trash-outline" size={18} color={t.danger} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            ) : null
           )}
 
-          {pHata && <Text style={{ color: t.danger, fontSize: 13, marginTop: 10 }}>{pHata}</Text>}
-          <View style={{ flexDirection: "row", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
-            <TouchableOpacity style={[s.izleDugme, { opacity: kayd === "kaydediliyor" ? 0.6 : 1 }]} onPress={kaydet} disabled={kayd === "kaydediliyor"}>
-              <Gradyan />
-              <Text style={s.izleYazi}>{kayd === "oldu" ? p.kaydedildi : p.kaydet}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={s.listemDugme} onPress={() => signOut()}>
+          {/* Çıkış — formun DIŞINDA (kazara basılmasın) */}
+          {!duzenle && (
+            <TouchableOpacity style={[s.listemDugme, { alignSelf: "flex-start", marginTop: 22 }]} onPress={() => signOut()}>
               <Text style={{ color: t.dim, fontSize: 14, fontWeight: "600" }}>{d.cikis}</Text>
             </TouchableOpacity>
-          </View>
+          )}
         </>
       ) : (
         <>
@@ -1336,30 +1408,35 @@ function MobilPuan({ video, user, girisAc, d }) {
           </Text>
         )}
       </View>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-        {Array.from({ length: 10 }, (_, i) => i + 1).map((p) => {
-          const secili = ozet.benim === p;
-          return (
-            <TouchableOpacity
-              key={p}
-              onPress={() => oyla(p)}
-              activeOpacity={0.8}
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 8,
-                alignItems: "center",
-                justifyContent: "center",
-                overflow: "hidden",
-                borderWidth: 1,
-                borderColor: secili ? t.accent : t.line,
-              }}
-            >
-              {secili && <Gradyan />}
-              <Text style={{ color: secili ? "#0A0A0B" : t.text, fontWeight: "700", fontSize: 13 }}>{p}</Text>
-            </TouchableOpacity>
-          );
-        })}
+      {/* 5+5 iki satır: her buton flex:1 kare → tüm ekranlara taşmadan sığar */}
+      <View style={{ gap: 6 }}>
+        {[[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]].map((satir, si) => (
+          <View key={si} style={{ flexDirection: "row", gap: 6 }}>
+            {satir.map((p) => {
+              const secili = ozet.benim === p;
+              return (
+                <TouchableOpacity
+                  key={p}
+                  onPress={() => oyla(p)}
+                  activeOpacity={0.8}
+                  style={{
+                    flex: 1,
+                    aspectRatio: 1,
+                    borderRadius: 8,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    overflow: "hidden",
+                    borderWidth: 1,
+                    borderColor: secili ? t.accent : t.line,
+                  }}
+                >
+                  {secili && <Gradyan />}
+                  <Text style={{ color: secili ? "#0A0A0B" : t.text, fontWeight: "700", fontSize: 15 }}>{p}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ))}
       </View>
     </View>
   );
@@ -1400,9 +1477,6 @@ function MobilFestival({ d, banner, git, tabloAc, yarismaAc, ayarlarAc, user, gi
           accessibilityLabel="Vaelo"
         />
         <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-          <TouchableOpacity style={s.dilDugme} onPress={yarismaAc}>
-            <Text style={s.dilYazi}>{d.yarisma.etiket}</Text>
-          </TouchableOpacity>
           <TouchableOpacity style={s.dilDugme} onPress={ayarlarAc}>
             <Text style={[s.dilYazi, { fontSize: 15 }]}>⚙</Text>
           </TouchableOpacity>
@@ -1647,14 +1721,6 @@ function Ana({ d, user, girisAc, ayarlarAc, tabloAc, yarismaAc, oynat, ac, arama
         accessibilityLabel="Vaelo"
       />
       <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-        <TouchableOpacity
-          style={s.dilDugme}
-          onPress={yarismaAc}
-          accessibilityRole="button"
-          accessibilityLabel={d.yarisma.etiket}
-        >
-          <Text style={s.dilYazi}>{d.yarisma.etiket}</Text>
-        </TouchableOpacity>
         <TouchableOpacity
           style={s.dilDugme}
           onPress={ayarlarAc}

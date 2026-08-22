@@ -411,6 +411,17 @@ export async function profilGuncelle(userId, alanlar) {
   if (error) throw error;
 }
 
+// Üreticinin KENDİ tüm içerikleri (taslak/inceleme/yayında) — profil grid'i için.
+// RLS: "creator kendi başlığını okur" (authenticated). Silme butonu bu listede gösterilir.
+export async function getBenimIceriklerim(userId) {
+  const { data } = await supabase
+    .from("titles").select("*, videos(*)").eq("creator_id", userId)
+    .order("created_at", { ascending: false });
+  return data ?? [];
+}
+// İçeriği sil (sahibi/admin) — cascade: videolar→izlenme/oy, listem, yarışma (sql/38 RPC).
+export const icerikSil = (titleId) => supabase.rpc("icerik_sil", { p_title: titleId });
+
 // ————— Üretici yükleme (web Upload.jsx ile AYNI akış) —————
 // Üreticinin kendi başlıkları (RLS: creator_id = auth.uid())
 export async function benimBasliklarim(userId) {
