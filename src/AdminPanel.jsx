@@ -739,6 +739,7 @@ function Basvurular() {
   const { s } = useLang();
   const [liste, setListe] = useState([]);
   const [hata, setHata] = useState(null);
+  const [filtre, setFiltre] = useState("beklemede"); // beklemede | onaylandi | reddedildi | hepsi
 
   async function yenile() {
     try {
@@ -766,6 +767,7 @@ function Basvurular() {
     cursor: "pointer",
     background: "none",
   };
+  const gosterilen = liste.filter((b) => filtre === "hepsi" || b.durum === filtre);
 
   return (
     <div style={{ marginTop: 48 }}>
@@ -773,10 +775,34 @@ function Basvurular() {
         {s.panel.basvuruBaslik}
       </div>
       <div style={{ color: t.dim, fontSize: 13, marginBottom: 16 }}>{s.panel.basvuruAciklama}</div>
+
+      {/* Filtre: Bekleyenler / Onaylananlar / Reddedilenler / Tümü */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+        {[
+          ["beklemede", s.panel.basvuruDurum.beklemede],
+          ["onaylandi", s.panel.basvuruDurum.onaylandi],
+          ["reddedildi", s.panel.basvuruDurum.reddedildi],
+          ["hepsi", s.panel.basvuruHepsi],
+        ].map(([k, etiket]) => (
+          <button
+            key={k}
+            onClick={() => setFiltre(k)}
+            style={{
+              background: filtre === k ? t.gradient : "none",
+              color: filtre === k ? "#0A0A0B" : t.dim,
+              border: `1px solid ${filtre === k ? t.accent : t.line}`,
+              borderRadius: 999, padding: "5px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer",
+            }}
+          >
+            {etiket}
+          </button>
+        ))}
+      </div>
+
       {hata && <div style={{ color: t.danger, fontSize: 13, marginBottom: 12 }}>{hata}</div>}
-      {liste.length === 0 && <div style={{ color: t.dim, fontSize: 13 }}>{s.panel.basvuruYok}</div>}
+      {gosterilen.length === 0 && <div style={{ color: t.dim, fontSize: 13 }}>{s.panel.basvuruYok}</div>}
       <div style={{ display: "grid", gap: 8 }}>
-        {liste.map((b) => (
+        {gosterilen.map((b) => (
           <div
             key={b.user_id}
             style={{
@@ -796,6 +822,16 @@ function Basvurular() {
               <span style={{ color: t.dim, flex: 1, minWidth: 0 }}>{b.mesaj}</span>
             ) : (
               <span style={{ flex: 1 }} />
+            )}
+            {b.pilot_video_url && (
+              <a
+                href={b.pilot_video_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ ...dgm, color: t.text, textDecoration: "none", whiteSpace: "nowrap" }}
+              >
+                ▶ {s.panel.basvuruVideo}
+              </a>
             )}
             {b.durum === "beklemede" ? (
               <>

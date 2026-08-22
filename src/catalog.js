@@ -568,12 +568,31 @@ export async function getCreatorBasvurum(userId) {
     .maybeSingle();
   return data ?? null;
 }
-// Başvur (yeni) ya da reddedilmişse yeniden dene
-export async function creatorBasvur(userId, mesaj) {
+// Pilot (örnek) videoyu 'pilot' bucket'ına yükle → { path, url } (public URL).
+export async function pilotVideoYukle(userId, dosya) {
+  const uzanti = (dosya.name?.split(".").pop() || "mp4").toLowerCase().split("?")[0];
+  const yol = `${userId}/${Date.now()}.${uzanti}`;
+  const { error } = await supabase.storage.from("pilot").upload(yol, dosya, {
+    contentType: dosya.type || "video/mp4",
+    upsert: false,
+  });
+  if (error) throw error;
+  const { data } = supabase.storage.from("pilot").getPublicUrl(yol);
+  return { path: yol, url: data.publicUrl };
+}
+// Başvur (yeni) ya da reddedilmişse yeniden dene — pilot video (opsiyonel) dahil
+export async function creatorBasvur(userId, mesaj, pilotUrl = null, pilotPath = null) {
   return supabase
     .from("creator_basvurulari")
     .upsert(
-      { user_id: userId, mesaj: mesaj || null, durum: "beklemede", karar_at: null },
+      {
+        user_id: userId,
+        mesaj: mesaj || null,
+        durum: "beklemede",
+        karar_at: null,
+        pilot_video_url: pilotUrl,
+        pilot_video_path: pilotPath,
+      },
       { onConflict: "user_id" }
     );
 }

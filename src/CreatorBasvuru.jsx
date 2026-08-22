@@ -1,7 +1,7 @@
 // Üretici (creator) başvuru ekranı — izleyici video yükleyebilmek için ONAY ister.
 // Onaylanınca role='creator' olur; Yükle/Stüdyo sekmeleri açılır (profil tazelenince).
 import { useEffect, useState } from "react";
-import { getCreatorBasvurum, creatorBasvur } from "./catalog";
+import { getCreatorBasvurum, creatorBasvur, pilotVideoYukle } from "./catalog";
 import { useLang } from "./i18n";
 import { t } from "./theme";
 
@@ -10,6 +10,7 @@ export default function CreatorBasvuru({ user, girisAc }) {
   const u = s.uretici;
   const [durum, setDurum] = useState(undefined); // undefined: yük · null: başvuru yok · {durum,mesaj}
   const [mesaj, setMesaj] = useState("");
+  const [dosya, setDosya] = useState(null); // pilot video (opsiyonel)
   const [gonderiliyor, setGonderiliyor] = useState(false);
 
   useEffect(() => {
@@ -19,9 +20,20 @@ export default function CreatorBasvuru({ user, girisAc }) {
 
   async function gonder() {
     setGonderiliyor(true);
-    const { error } = await creatorBasvur(user.id, mesaj.trim());
+    try {
+      let pilotUrl = null;
+      let pilotPath = null;
+      if (dosya) {
+        const r = await pilotVideoYukle(user.id, dosya); // 'pilot' bucket → { path, url }
+        pilotUrl = r.url;
+        pilotPath = r.path;
+      }
+      const { error } = await creatorBasvur(user.id, mesaj.trim(), pilotUrl, pilotPath);
+      if (!error) setDurum({ durum: "beklemede", mesaj: mesaj.trim() });
+    } catch {
+      /* yükleme/başvuru hatası → durum değişmez, kullanıcı tekrar dener */
+    }
     setGonderiliyor(false);
-    if (!error) setDurum({ durum: "beklemede", mesaj: mesaj.trim() });
   }
 
   const kap = { maxWidth: 620, margin: "0 auto", padding: `48px ${t.pad}` };
@@ -76,6 +88,24 @@ export default function CreatorBasvuru({ user, girisAc }) {
             onChange={(e) => setMesaj(e.target.value)}
             rows={4}
           />
+
+          {/* Pilot video (opsiyonel) — 'pilot' bucket'ına yüklenir, başvuruya bağlanır */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{u.pilotBaslik}</div>
+            <div style={{ color: t.dim, fontSize: 13, lineHeight: 1.5, marginBottom: 10 }}>{u.pilotAciklama}</div>
+            <label
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 10, cursor: "pointer",
+                border: `1px solid ${dosya ? t.accent : t.line}`, borderRadius: 8, padding: "10px 16px",
+                fontSize: 14, fontWeight: 600, color: dosya ? t.accent : t.text, background: t.surface2,
+              }}
+            >
+              <input type="file" accept="video/*" style={{ display: "none" }} onChange={(e) => setDosya(e.target.files?.[0] ?? null)} />
+              {dosya ? `✓ ${u.pilotSecili}` : `▶ ${u.pilotSec}`}
+            </label>
+            {dosya && <div style={{ color: t.dim, fontSize: 12, marginTop: 6, wordBreak: "break-all" }}>{dosya.name}</div>}
+          </div>
+
           <button
             style={{ ...anaDugme, opacity: gonderiliyor ? 0.6 : 1 }}
             disabled={gonderiliyor}
