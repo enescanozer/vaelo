@@ -418,12 +418,6 @@ function ProfilEkrani({ d, user, dil, setDil, ayarlar, setAyarlar, girisAc }) {
             )
           )}
 
-          {/* Çıkış — formun DIŞINDA (kazara basılmasın) */}
-          {!duzenle && (
-            <TouchableOpacity style={[s.listemDugme, { alignSelf: "flex-start", marginTop: 22 }]} onPress={() => signOut()}>
-              <Text style={{ color: t.dim, fontSize: 14, fontWeight: "600" }}>{d.cikis}</Text>
-            </TouchableOpacity>
-          )}
         </>
       ) : (
         <>
@@ -451,6 +445,13 @@ function ProfilEkrani({ d, user, dil, setDil, ayarlar, setAyarlar, girisAc }) {
           thumbColor="#0A0A0B"
         />
       </View>
+
+      {/* Çıkış — her zaman profilin EN ALTINDA, küçük sönük yazı (kazara basılmasın) */}
+      {user && !duzenle && (
+        <TouchableOpacity onPress={() => signOut()} style={{ alignSelf: "center", marginTop: 30, padding: 8 }} hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}>
+          <Text style={{ color: t.dim, fontSize: 12 }}>{d.cikis}</Text>
+        </TouchableOpacity>
+      )}
     </ScrollView>
   );
 }
