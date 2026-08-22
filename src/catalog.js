@@ -417,6 +417,26 @@ export function setTitleTest(id, isTest) {
   return supabase.from("titles").update({ is_test: isTest }).eq("id", id);
 }
 
+// Kendi profil sayfası: üreticinin TÜM içerikleri (taslak/inceleme/yayında) + silme + bio/sosyal.
+export async function getBenimIceriklerim(userId) {
+  const { data } = await supabase
+    .from("titles").select("*, videos(*)").eq("creator_id", userId)
+    .order("created_at", { ascending: false });
+  return data ?? [];
+}
+// İçeriği sil (sahibi/admin) — cascade: videolar→izlenme/oy, listem, yarışma (sql/38 RPC).
+export const icerikSil = (titleId) => supabase.rpc("icerik_sil", { p_title: titleId });
+// Bio + sosyal self-update (RLS: profil kendi kaydını günceller).
+export async function profilGuncelle(userId, alanlar) {
+  const { error } = await supabase.from("profiles").update(alanlar).eq("id", userId);
+  return { error };
+}
+// Kendi profil satırı (izleyici dahil) — display_name/role/bio/sosyal. RLS: kendi kaydını okur.
+export async function getKendiProfil(userId) {
+  const { data } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
+  return data ?? null;
+}
+
 // ————— Öneri algoritması (panelden seçilebilir strateji, sql/36) —————
 export async function getOneriStrateji() {
   const { data } = await supabase.from("recommendation_config").select("*").eq("id", 1).maybeSingle();

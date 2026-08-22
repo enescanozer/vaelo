@@ -27,7 +27,12 @@ import {
   getOneri,
   sosyalUrl,
   sohbetSayim,
+  getBenimIceriklerim,
+  icerikSil,
+  profilGuncelle,
+  getKendiProfil,
 } from "./catalog";
+import { takmaAdAyarla, signOut } from "./auth";
 import { useLang } from "./i18n";
 import { useAyarlar } from "./ayarlar";
 import { t } from "./theme";
@@ -53,7 +58,7 @@ function streamSdkYukle() {
 // sonraki sekme dönüşlerinde Keşfet ana sayfadan başlar.
 let derinBaglantiKullanildi = false;
 
-export default function Viewer({ user, istenen, anaSinyal, festivalGit, girisAc }) {
+export default function Viewer({ user, istenen, anaSinyal, profilId, profilSinyal, festivalGit, girisAc }) {
   // gorunum: {tip:"ana"} | {tip:"detay", id} | {tip:"oynat", video, baslik, baslangic}
   // Mount kaynağı: (1) history.state.id — tab-geri ile kesfet'e dönüşte videoyu geri yükler;
   // (2) ilk açılışta ?b= deep-link. İkisi de yoksa ana sayfa.
@@ -89,6 +94,15 @@ export default function Viewer({ user, istenen, anaSinyal, festivalGit, girisAc 
   useEffect(() => {
     if (istenen?.id) setGorunum({ tip: "detay", id: istenen.id });
   }, [istenen]);
+
+  // Üst menüde ada tıklanınca profil sayfasını aç (sinyal artışında)
+  const oncekiProfilSinyal = useRef(profilSinyal);
+  useEffect(() => {
+    if (profilSinyal !== oncekiProfilSinyal.current) {
+      oncekiProfilSinyal.current = profilSinyal;
+      if (profilId) setGorunum({ tip: "uretici", id: profilId });
+    }
+  }, [profilSinyal]);
 
   // ————— Tarayıcı geçmişi (browser back/forward) —————
   // Kök sorun (eski): navigasyonda YALNIZ replaceState kullanılıyordu (pushState YOK) + popstate
@@ -172,6 +186,8 @@ export default function Viewer({ user, istenen, anaSinyal, festivalGit, girisAc 
     ekran = (
       <UreticiProfili
         id={gorunum.id}
+        user={user}
+        girisAc={girisAc}
         ac={(id) => setGorunum({ tip: "detay", id })}
         geri={() => setGorunum({ tip: "ana" })}
       />
@@ -1187,19 +1203,35 @@ function UreticiKarti({ uretici }) {
 
 // ————— Üretici profil sayfası (Instagram/TikTok tarzı): avatar + ad + bio + sosyal + ürettiği içerikler —————
 // Kaynak: public uretici_kartlari + yayınlanmış içerikler (RLS). Kendi profil düzenleme sistemine DOKUNMAZ.
-function UreticiProfili({ id, ac, geri }) {
+function UreticiProfili({ id, user, girisAc, ac, geri }) {
   const { s } = useLang();
+  const kendi = !!user && user.id === id; // kendi profili mi → düzenle/sil/çıkış
   const [uretici, setUretici] = useState(null);
   const [icerikler, setIcerikler] = useState(null); // null: yükleniyor
+  const [duzenle, setDuzenle] = useState(false);
+  const [ad, setAd] = useState("");
+  const [bio, setBio] = useState("");
+  const [sosyal, setSosyal] = useState({ instagram: "", tiktok: "", youtube: "", twitter: "", website: "" });
+  const [kayd, setKayd] = useState(false);
+  const [pHata, setPHata] = useState(null);
+  const [siliniyor, setSiliniyor] = useState(null);
+
+  const alanDoldur = (pr) => {
+    setAd(pr?.display_name ?? "");
+    setBio(pr?.bio ?? "");
+    setSosyal({ instagram: pr?.instagram ?? "", tiktok: pr?.tiktok ?? "", youtube: pr?.youtube ?? "", twitter: pr?.twitter ?? "", website: pr?.website ?? "" });
+  };
   useEffect(() => {
     let aktif = true;
-    setUretici(null);
-    setIcerikler(null);
-    getUreticiProfil(id).then((u) => aktif && setUretici(u)).catch(() => {});
-    getUreticiIcerikleri(id).then((v) => aktif && setIcerikler(v)).catch(() => aktif && setIcerikler([]));
+    setUretici(null); setIcerikler(null); setDuzenle(false);
+    // Kendi profilinde tam profiles satırı (izleyici dahil); başkasında public üretici kartı.
+    (kendi ? getKendiProfil(id) : getUreticiProfil(id)).then((u) => { if (aktif) { setUretici(u); alanDoldur(u); } }).catch(() => {});
+    (kendi ? getBenimIceriklerim(id) : getUreticiIcerikleri(id)).then((v) => aktif && setIcerikler(v)).catch(() => aktif && setIcerikler([]));
     return () => { aktif = false; };
-  }, [id]);
+  }, [id, kendi]);
 
+  // Üretici rozeti/içerik yalnız creator'da: kendi profilinde role, başkasında public kart varlığı
+  const ureticiMi = kendi ? (uretici?.role === "creator" || uretici?.role === "admin") : !!uretici;
   const linkler = uretici
     ? [
         ["instagram", "Instagram", uretici.instagram],
@@ -1209,6 +1241,35 @@ function UreticiProfili({ id, ac, geri }) {
         ["website", s.kesfet.website, uretici.website],
       ].filter(([p, , ham]) => sosyalUrl(p, ham))
     : [];
+  const inputStil = { width: "100%", padding: "10px 12px", background: t.surface2, border: `1px solid ${t.line}`, borderRadius: 8, color: t.text, fontSize: 14, outline: "none", marginTop: 6, boxSizing: "border-box" };
+
+  async function kaydet() {
+    if (kayd) return;
+    setKayd(true); setPHata(null);
+    const yeniAd = ad.trim();
+    if (yeniAd !== (uretici?.display_name ?? "") || !uretici?.display_name_chosen) {
+      const r = await takmaAdAyarla(yeniAd, (s.locale || "en").slice(0, 2));
+      if (r.hata) { setKayd(false); setPHata(s.profil.takmaAd.hata[r.kod] ?? s.profil.takmaAd.hata.sunucu); return; }
+    }
+    if (ureticiMi) {
+      const bosNull = (x) => { const v = (x || "").trim(); return v || null; };
+      const { error } = await profilGuncelle(id, {
+        bio: bosNull(bio), instagram: bosNull(sosyal.instagram), tiktok: bosNull(sosyal.tiktok),
+        youtube: bosNull(sosyal.youtube), twitter: bosNull(sosyal.twitter), website: bosNull(sosyal.website),
+      });
+      if (error) { setKayd(false); setPHata(s.profil.takmaAd.hata.sunucu); return; }
+    }
+    setUretici((u) => ({ ...(u || {}), display_name: yeniAd, display_name_chosen: true, bio, ...sosyal }));
+    setKayd(false); setDuzenle(false);
+  }
+  function iptal() { alanDoldur(uretici); setPHata(null); setDuzenle(false); }
+  async function sil(baslik) {
+    if (!window.confirm(s.kesfet.icerikSilOnay)) return;
+    setSiliniyor(baslik.id);
+    const { error } = await icerikSil(baslik.id);
+    if (!error) setIcerikler((l) => (l || []).filter((x) => x.id !== baslik.id));
+    setSiliniyor(null);
+  }
 
   return (
     <div style={{ maxWidth: 1080, margin: "0 auto", padding: `16px ${t.pad} 64px` }}>
@@ -1216,66 +1277,111 @@ function UreticiProfili({ id, ac, geri }) {
         <GeriButon geri={geri} />
       </div>
 
-      {/* Başlık: gradient halkalı avatar + ad + içerik sayacı */}
+      {/* Üst bölüm (herkes görür): avatar + ad + (üretici) rozet/sayaç + Düzenle (kendi) */}
       <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
         <div style={{ padding: 3, borderRadius: "50%", background: t.gradient, flexShrink: 0, boxShadow: "0 8px 28px rgba(0,0,0,0.35)" }}>
           <div style={{ padding: 3, borderRadius: "50%", background: t.bg }}>
-            <Avatar ad={uretici?.display_name || "?"} boyut={96} />
+            <Avatar ad={ad || uretici?.display_name || (kendi ? user.email : "?")} boyut={96} />
           </div>
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ color: t.accent, fontSize: 11, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase" }}>
-            {s.kesfet.uretici}
-          </div>
+          {ureticiMi && (
+            <div style={{ color: t.accent, fontSize: 11, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase" }}>{s.kesfet.uretici}</div>
+          )}
           <div style={{ fontFamily: t.display, fontWeight: 800, fontSize: "clamp(24px, 4.5vw, 36px)", lineHeight: 1.08, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis" }}>
-            {uretici?.display_name || s.kesfet.uretici}
+            {ad || uretici?.display_name || (kendi ? user.email : s.kesfet.uretici)}
           </div>
-          {icerikler !== null && (
+          {ureticiMi && icerikler !== null && (
             <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 12, padding: "5px 13px", borderRadius: 999, background: t.surface2, border: `1px solid ${t.line}`, fontSize: 13, color: t.dim }}>
               <span style={{ color: t.text, fontWeight: 800 }}>{icerikler.length}</span> 🎬
             </div>
           )}
         </div>
-      </div>
-
-      {uretici?.bio && (
-        <div style={{ color: t.text, opacity: 0.82, fontSize: 15, lineHeight: 1.6, marginTop: 18, whiteSpace: "pre-wrap", maxWidth: 620 }}>
-          {uretici.bio}
-        </div>
-      )}
-
-      {linkler.length > 0 && (
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 16 }}>
-          {linkler.map(([p, etiket, ham]) => (
-            <a
-              key={p}
-              href={sosyalUrl(p, ham)}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ fontSize: 13, fontWeight: 600, color: t.text, textDecoration: "none", padding: "8px 15px", border: `1px solid ${t.line}`, borderRadius: 999, background: t.surface2, transition: "border-color .15s" }}
-              onMouseEnter={(e) => (e.currentTarget.style.borderColor = t.accent)}
-              onMouseLeave={(e) => (e.currentTarget.style.borderColor = t.line)}
-            >
-              {etiket} ↗
-            </a>
-          ))}
-        </div>
-      )}
-
-      {/* Ürettiği içerikler */}
-      <div style={{ borderTop: `1px solid ${t.line}`, marginTop: 28, paddingTop: 24 }}>
-        {icerikler === null ? (
-          <div style={{ color: t.dim }}>{s.genel.yukleniyor}</div>
-        ) : icerikler.length === 0 ? (
-          <div style={{ color: t.dim }}>—</div>
-        ) : (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
-            {icerikler.map((b) => (
-              <Kart key={b.id} kart={toCard(b)} ac={ac} />
-            ))}
-          </div>
+        {kendi && !duzenle && (
+          <button onClick={() => setDuzenle(true)}
+            style={{ background: "none", border: `1px solid ${t.line}`, borderRadius: 8, color: t.text, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+            ✏ {s.kesfet.duzenle}
+          </button>
         )}
       </div>
+
+      {kendi && duzenle ? (
+        /* Düzenleme modu (inline toggle): ad + (üretici: bio/sosyal) + Kaydet/Vazgeç */
+        <div style={{ marginTop: 22, maxWidth: 520 }}>
+          <label style={{ color: t.dim, fontSize: 13 }}>{s.profil.gorunenAd}</label>
+          <input style={inputStil} value={ad} onChange={(e) => setAd(e.target.value)} maxLength={20} />
+          {ureticiMi && (
+            <>
+              <label style={{ color: t.dim, fontSize: 13, display: "block", marginTop: 16 }}>{s.profil.bio}</label>
+              <textarea style={{ ...inputStil, minHeight: 80, resize: "vertical" }} value={bio} onChange={(e) => setBio(e.target.value)} maxLength={300} />
+              <label style={{ color: t.dim, fontSize: 13, display: "block", marginTop: 16 }}>{s.profil.sosyal}</label>
+              {[["instagram", "Instagram"], ["tiktok", "TikTok"], ["youtube", "YouTube"], ["twitter", "X"], ["website", s.kesfet.website]].map(([k, lbl]) => (
+                <input key={k} style={inputStil} placeholder={lbl} value={sosyal[k]} onChange={(e) => setSosyal((sc) => ({ ...sc, [k]: e.target.value }))} />
+              ))}
+            </>
+          )}
+          {pHata && <div style={{ color: t.danger, fontSize: 13, marginTop: 10 }}>{pHata}</div>}
+          <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+            <button onClick={kaydet} disabled={kayd}
+              style={{ background: t.gradient, color: "#0A0A0B", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: kayd ? 0.6 : 1 }}>
+              {s.profil.kaydet}
+            </button>
+            <button onClick={iptal}
+              style={{ background: "none", border: `1px solid ${t.line}`, borderRadius: 8, color: t.dim, padding: "10px 20px", fontSize: 14, cursor: "pointer" }}>
+              {s.profil.vazgec}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {uretici?.bio && (
+            <div style={{ color: t.text, opacity: 0.82, fontSize: 15, lineHeight: 1.6, marginTop: 18, whiteSpace: "pre-wrap", maxWidth: 620 }}>
+              {uretici.bio}
+            </div>
+          )}
+          {linkler.length > 0 && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 16 }}>
+              {linkler.map(([p, etiket, ham]) => (
+                <a key={p} href={sosyalUrl(p, ham)} target="_blank" rel="noopener noreferrer"
+                  style={{ fontSize: 13, fontWeight: 600, color: t.text, textDecoration: "none", padding: "8px 15px", border: `1px solid ${t.line}`, borderRadius: 999, background: t.surface2 }}>
+                  {etiket} ↗
+                </a>
+              ))}
+            </div>
+          )}
+
+          {/* İçerik bölümü — üreticinin içerikleri; kendi profilinde sil (çöp kutusu) */}
+          <div style={{ borderTop: `1px solid ${t.line}`, marginTop: 28, paddingTop: 24 }}>
+            {icerikler === null ? (
+              <div style={{ color: t.dim }}>{s.genel.yukleniyor}</div>
+            ) : icerikler.length === 0 ? (
+              <div style={{ color: t.dim }}>—</div>
+            ) : (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+                {icerikler.map((b) => (
+                  <div key={b.id} style={{ position: "relative", opacity: siliniyor === b.id ? 0.4 : 1 }}>
+                    <Kart kart={toCard(b)} ac={ac} />
+                    {kendi && (
+                      <button onClick={(e) => { e.stopPropagation(); sil(b); }} title={s.kesfet.sil} disabled={siliniyor === b.id}
+                        style={{ position: "absolute", top: 8, right: 8, width: 30, height: 30, borderRadius: 8, border: "none", background: "rgba(10,10,11,0.78)", color: t.danger, fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        🗑
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Çıkış — kendi profilinde, formun/içeriğin DIŞINDA */}
+          {kendi && (
+            <button onClick={() => { signOut(); geri(); }}
+              style={{ marginTop: 28, background: "none", border: `1px solid ${t.line}`, borderRadius: 8, color: t.dim, padding: "9px 18px", fontSize: 13, cursor: "pointer" }}>
+              {s.genel.cikis}
+            </button>
+          )}
+        </>
+      )}
     </div>
   );
 }

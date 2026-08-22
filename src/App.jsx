@@ -55,6 +55,9 @@ export default function App() {
   const [istenenBaslik, setIstenenBaslik] = useState(null);
   // Logo/Keşfet tıklanınca Viewer'ı ana sayfaya döndüren sayaç sinyali
   const [anaSinyal, setAnaSinyal] = useState(0);
+  // Üst menüde ada tıklayınca Viewer'da profil sayfasını açan sinyal
+  const [profilId, setProfilId] = useState(null);
+  const [profilSinyal, setProfilSinyal] = useState(0);
   const [yarismaGorunur, setYarismaGorunur] = useState(false);
 
   // ————— Tarayıcı geçmişi: TAB (sekme) navigasyonu —————
@@ -374,9 +377,9 @@ export default function App() {
                 </div>
               </>
             )}
-            {/* Ada tıklayınca profil modalı açılır */}
+            {/* Ada tıklayınca profil SAYFASI açılır (Keşfet içinde, kendi profili) */}
             <button
-              onClick={() => setProfilAcik(true)}
+              onClick={() => { setProfilId(user.id); setProfilSinyal((n) => n + 1); setSekme("kesfet"); }}
               style={{
                 background: "none",
                 border: "none",
@@ -466,6 +469,8 @@ export default function App() {
             user={user}
             istenen={istenenBaslik}
             anaSinyal={anaSinyal}
+            profilId={profilId}
+            profilSinyal={profilSinyal}
             girisAc={() => setGirisAcik(true)}
             festivalGit={(hedef) => {
               // Festival CTA'ları: sanat → Tablo; film → rol-farkında (creator=Yükle,
