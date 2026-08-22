@@ -417,6 +417,21 @@ export function setTitleTest(id, isTest) {
   return supabase.from("titles").update({ is_test: isTest }).eq("id", id);
 }
 
+// ————— Öneri algoritması (panelden seçilebilir strateji, sql/36) —————
+export async function getOneriStrateji() {
+  const { data } = await supabase.from("recommendation_config").select("*").eq("id", 1).maybeSingle();
+  return data ?? null;
+}
+export function setOneriStrateji(strat) {
+  return supabase.rpc("set_oneri_strateji", { p_strat: strat });
+}
+// Aktif stratejiden sıralı title_id listesi (dağıtıcı; boşsa trending'e düşer + loglar)
+export async function getOneri(userId, topN = 12) {
+  const { data, error } = await supabase.rpc("oneri_getir", { p_user: userId ?? null, p_top: topN });
+  if (error) return [];
+  return (data ?? []).map((r) => r.title_id);
+}
+
 // İçerik türü (kategori) etiketi: dizi · kısa film · uzun film · film (eski/genel)
 export function turAdi(kind, s) {
   return kind === "dizi"

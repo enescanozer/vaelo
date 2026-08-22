@@ -24,6 +24,7 @@ import {
   getUreticiProfil,
   getUreticiIcerikleri,
   turAdi,
+  getOneri,
   sosyalUrl,
   sohbetSayim,
 } from "./catalog";
@@ -354,18 +355,19 @@ function AnaSayfa({ user, ac, oynat, festivalGit }) {
       return;
     }
     let aktif = true;
-    getKisiselRaflar(user.id).then(({ devam: d, listem: l, turler }) => {
+    getKisiselRaflar(user.id).then(({ devam: d, listem: l }) => {
       if (!aktif) return;
       setDevam(d);
       setListem(l);
-      const sevilen = new Set(turler.slice(0, 3));
-      const devamIdleri = new Set(d.map((oge) => oge.baslik.id));
-      setOneri(
-        katalog
-          .filter((b) => sevilen.has(b.genre) && !devamIdleri.has(b.id))
-          .slice(0, 12)
-      );
     });
+    // "Sana özel": panelden seçili öneri stratejisi (backend dağıtıcı; boşsa trending'e düşer)
+    getOneri(user.id, 12)
+      .then((idler) => {
+        if (!aktif) return;
+        const harita = new Map(katalog.map((b) => [b.id, b]));
+        setOneri(idler.map((id) => harita.get(id)).filter(Boolean));
+      })
+      .catch(() => aktif && setOneri([]));
     return () => {
       aktif = false;
     };

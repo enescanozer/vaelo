@@ -24,9 +24,77 @@ import {
   getBagisAyarlari,
   setAppSetting,
   turAdi,
+  getOneriStrateji,
+  setOneriStrateji,
 } from "./catalog";
 import { useLang } from "./i18n";
 import { t } from "./theme";
+
+// Öneri algoritması kontrolü: tek tık ile aktif stratejiyi değiştir (optimistic + audit)
+function OneriStratejiKontrol() {
+  const { s } = useLang();
+  const o = s.panel.oneri;
+  const [cfg, setCfg] = useState(null);
+  const [islemde, setIslemde] = useState(false);
+  useEffect(() => {
+    getOneriStrateji().then(setCfg).catch(() => {});
+  }, []);
+  async function sec(strat) {
+    if (islemde || cfg?.active_strategy === strat) return;
+    const onceki = cfg;
+    setIslemde(true);
+    setCfg((c) => ({ ...(c || {}), active_strategy: strat })); // optimistic
+    const { error } = await setOneriStrateji(strat);
+    if (error) setCfg(onceki);
+    else setCfg((c) => ({ ...(c || {}), active_strategy: strat, updated_at: new Date().toISOString() }));
+    setIslemde(false);
+  }
+  const kartlar = [
+    { id: "kisisel", ad: o.kisiselAd, aciklama: o.kisiselAcikla },
+    { id: "trending", ad: o.trendingAd, aciklama: o.trendingAcikla },
+  ];
+  return (
+    <div style={{ marginBottom: 32, padding: 20, background: t.surface, border: `1px solid ${t.line}`, borderRadius: 12 }}>
+      <div style={{ fontFamily: t.display, fontWeight: 700, fontSize: 17 }}>{o.baslik}</div>
+      <div style={{ color: t.dim, fontSize: 13, marginTop: 4, marginBottom: 14 }}>{o.aciklama}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+        {kartlar.map((k) => {
+          const aktif = cfg?.active_strategy === k.id;
+          return (
+            <button
+              key={k.id}
+              onClick={() => sec(k.id)}
+              disabled={islemde}
+              style={{
+                textAlign: "left",
+                padding: 16,
+                borderRadius: 10,
+                cursor: islemde ? "default" : "pointer",
+                background: aktif ? t.surface2 : "transparent",
+                border: `1.5px solid ${aktif ? t.accent : t.line}`,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontWeight: 700, fontSize: 15, color: t.text }}>{k.ad}</span>
+                {aktif && (
+                  <span style={{ fontSize: 10, fontWeight: 800, color: "#0A0A0B", background: t.accent, borderRadius: 999, padding: "2px 8px" }}>
+                    {o.aktif}
+                  </span>
+                )}
+              </div>
+              <div style={{ color: t.dim, fontSize: 12, marginTop: 6, lineHeight: 1.5 }}>{k.aciklama}</div>
+            </button>
+          );
+        })}
+      </div>
+      {cfg?.updated_at && (
+        <div style={{ color: t.dim, fontSize: 11, marginTop: 12 }}>
+          {o.sonDegisim}: {new Date(cfg.updated_at).toLocaleString(s.locale)}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function AdminPanel({ admin }) {
   const { s } = useLang();
@@ -87,6 +155,9 @@ export default function AdminPanel({ admin }) {
         {s.panel.kuyrukBaslik}
       </div>
       <div style={{ color: t.dim, fontSize: 14, marginBottom: 28 }}>{s.panel.kuyrukAciklama}</div>
+
+      {/* Öneri algoritması — tek tık strateji değiştirme (sql/36) */}
+      <OneriStratejiKontrol />
 
       {hata && (
         <div style={{ color: t.danger, fontSize: 13, marginBottom: 16 }}>{hata}</div>
