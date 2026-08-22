@@ -23,6 +23,7 @@ import {
   puanVer,
   getUreticiProfil,
   getUreticiIcerikleri,
+  turAdi,
   sosyalUrl,
   sohbetSayim,
 } from "./catalog";
@@ -782,7 +783,7 @@ function Kart({ kart, ac }) {
       </div>
       <div style={{ marginTop: 8, fontSize: 14, fontWeight: 600 }}>{kart.ad}</div>
       <div style={{ color: t.dim, fontSize: 12, marginTop: 2 }}>
-        {[kart.tip === "dizi" ? s.genel.dizi : s.genel.film, kart.tur]
+        {[turAdi(kart.tip, s), kart.tur]
           .filter(Boolean)
           .join(" · ")}
       </div>

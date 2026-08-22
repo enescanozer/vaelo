@@ -9,6 +9,7 @@ import {
   voteContest,
   enterContest,
   toCard,
+  turAdi,
 } from "./catalog";
 import { useLang } from "./i18n";
 import { t } from "./theme";
@@ -202,7 +203,7 @@ export default function Contest({ user, izle, girisAc }) {
               {lider.name}
             </div>
             <div style={{ color: t.dim, fontSize: 13 }}>
-              {[lider.kind === "dizi" ? s.genel.dizi : s.genel.film, lider.genre]
+              {[turAdi(lider.kind, s), lider.genre]
                 .filter(Boolean)
                 .join(" · ")}
             </div>

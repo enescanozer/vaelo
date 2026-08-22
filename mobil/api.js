@@ -431,3 +431,60 @@ export async function createUpload(body) {
   if (error) throw error;
   return data; // { uploadURL, ... }
 }
+
+// ————— Yarışma (web catalog.js ile AYNI backend) —————
+// Aktif yarışma VEYA bitişten sonra 14 gün (kazanan gösterimi). Anon okur.
+export async function getActiveContest() {
+  const onDortGun = new Date(Date.now() - 14 * 86400000).toISOString();
+  const veri = await getir(
+    `contests?select=*&or=(active.eq.true,ends_at.gte.${onDortGun})&order=active.desc,ends_at.desc.nullslast&limit=1`
+  );
+  return veri?.[0] ?? null;
+}
+// Yarışmaya katılan yayınlanmış başlıklar (onaylı bölümleriyle)
+export async function getContestEntries(contestId) {
+  const veri = await getir(`contest_entries?select=title_id,titles(*,videos(*))&contest_id=eq.${contestId}`);
+  return (veri ?? [])
+    .map((satir) => satir.titles)
+    .filter((b) => b && b.status === "published")
+    .map(onayliBolumler)
+    .filter((b) => b.videos.length > 0);
+}
+// Oy toplamları: Map(title_id → oy)
+export async function getContestResults(contestId) {
+  const { data, error } = await supabase.rpc("contest_results", { yarisma: contestId });
+  if (error) return new Map();
+  return new Map((data ?? []).map((satir) => [satir.title_id, Number(satir.oy)]));
+}
+export async function getMyVote(contestId, userId) {
+  const { data } = await supabase.from("contest_votes").select("title_id")
+    .eq("contest_id", contestId).eq("user_id", userId).maybeSingle();
+  return data?.title_id ?? null;
+}
+// Yarışma başına tek oy; tekrar oylamada güncellenir
+export const voteContest = (contestId, userId, titleId) =>
+  supabase.from("contest_votes").upsert(
+    { contest_id: contestId, user_id: userId, title_id: titleId },
+    { onConflict: "contest_id,user_id" }
+  );
+// Üretici kendi yayınlanmış başlığını yarışmaya sokar (RLS: creator + published kontrolü)
+export const enterContest = (contestId, titleId) =>
+  supabase.from("contest_entries").insert({ contest_id: contestId, title_id: titleId });
+// Üreticinin yarışmaya sokabileceği (yayınlanmış) başlıkları
+export async function getMyPublishedTitles(userId) {
+  const { data } = await supabase.from("titles").select("id, name")
+    .eq("creator_id", userId).eq("status", "published").order("created_at", { ascending: false });
+  return data ?? [];
+}
+// Tüm yarışma verisi tek çağrıda (web getYarismaVerisi ile aynı)
+export async function getYarismaVerisi(userId) {
+  const yarisma = await getActiveContest();
+  if (!yarisma) return { yarisma: null, girisler: [], oylar: new Map(), benimOyum: null, basliklarim: [] };
+  const [girisler, oylar, benimOyum, basliklarim] = await Promise.all([
+    getContestEntries(yarisma.id),
+    getContestResults(yarisma.id),
+    userId ? getMyVote(yarisma.id, userId) : Promise.resolve(null),
+    userId ? getMyPublishedTitles(userId) : Promise.resolve([]),
+  ]);
+  return { yarisma, girisler, oylar, benimOyum, basliklarim };
+}

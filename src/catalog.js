@@ -405,6 +405,17 @@ export async function getYarismaVerisi(userId) {
 
 // ————— Raflar —————
 // Başlığı raf kartına indirger
+// İçerik türü (kategori) etiketi: dizi · kısa film · uzun film · film (eski/genel)
+export function turAdi(kind, s) {
+  return kind === "dizi"
+    ? s.genel.dizi
+    : kind === "kisa_film"
+    ? s.genel.kisaFilm
+    : kind === "uzun_film"
+    ? s.genel.uzunFilm
+    : s.genel.film;
+}
+
 export function toCard(baslik) {
   const ilkBolum = (baslik.videos ?? [])[0];
   return {

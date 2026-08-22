@@ -23,6 +23,7 @@ import {
   forumYaptirimGecmisi,
   getBagisAyarlari,
   setAppSetting,
+  turAdi,
 } from "./catalog";
 import { useLang } from "./i18n";
 import { t } from "./theme";
@@ -116,7 +117,7 @@ export default function AdminPanel({ admin }) {
               <span style={{ color: t.dim, fontSize: 13 }}>
                 {video.titles?.kind === "dizi"
                   ? `${s.genel.seb(video.season ?? 1, video.episode ?? 1)}${video.name ? ` — ${video.name}` : ""}`
-                  : s.genel.film}
+                  : turAdi(video.titles?.kind, s)}
               </span>
               <span style={{ color: t.dim, fontSize: 12, marginLeft: "auto" }}>
                 {new Date(video.created_at).toLocaleString(s.locale)}
@@ -318,7 +319,7 @@ function ModerasyonKuyrugu() {
                 <span style={{ color: t.dim, fontSize: 12 }}>
                   {v?.titles?.kind === "dizi"
                     ? `${s.genel.seb(v.season ?? 1, v.episode ?? 1)}${v.name ? ` — ${v.name}` : ""}`
-                    : s.genel.film}
+                    : turAdi(v?.titles?.kind, s)}
                 </span>
                 {v?.titles?.creator_id && (
                   <span style={{ color: t.dim, fontSize: 11 }}>@{v.titles.creator_id.slice(0, 8)}</span>

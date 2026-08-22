@@ -62,6 +62,9 @@ import {
   benimBasliklarim,
   baslikOlustur,
   createUpload,
+  getYarismaVerisi,
+  voteContest,
+  enterContest,
 } from "./api";
 import {
   useAuth,
@@ -547,6 +550,111 @@ function MobilYukle({ d, user, girisAc }) {
   );
 }
 
+// ————— Mobil Yarışma: aktif yarışma + üretici katılımı (kendi başlığını sok) + oylama —————
+// Backend web ile AYNI (contests / contest_entries / contest_votes). Üretici yayınlanmış
+// içeriklerinden birini seçip yarışmaya sokar (RLS: creator + published). İzleyici tek oy.
+function MobilYarisma({ d, user, girisAc, geri }) {
+  const yr = d.yarisma;
+  const [veri, setVeri] = useState(null); // null: yükleniyor
+  const [secili, setSecili] = useState(null); // katılım için seçilen başlık
+  const [mesgul, setMesgul] = useState(false);
+
+  const yukle = () =>
+    getYarismaVerisi(user?.id)
+      .then(setVeri)
+      .catch(() => setVeri({ yarisma: null, girisler: [], oylar: new Map(), benimOyum: null, basliklarim: [] }));
+  useEffect(() => { setVeri(null); yukle(); }, [user?.id]);
+
+  if (veri === null) return <Durum d={d} yukleniyor geri={geri} />;
+  const { yarisma, girisler, oylar, benimOyum, basliklarim } = veri;
+  if (!yarisma) return <Durum d={d} mesaj={yr.yok} geri={geri} />;
+
+  const kalanGun = yarisma.ends_at ? Math.max(0, Math.ceil((new Date(yarisma.ends_at) - Date.now()) / 86400000)) : null;
+  const bitti = yarisma.ends_at ? new Date(yarisma.ends_at) <= Date.now() : false;
+  const sirali = [...girisler].sort((a, b) => (oylar.get(b.id) || 0) - (oylar.get(a.id) || 0));
+  const katilabilir = basliklarim.filter((b) => !girisler.some((g) => g.id === b.id));
+
+  async function oyla(titleId) {
+    if (!user) return girisAc();
+    if (mesgul) return;
+    setMesgul(true);
+    await voteContest(yarisma.id, user.id, titleId);
+    await yukle();
+    setMesgul(false);
+  }
+  async function katil() {
+    if (!user) return girisAc();
+    if (!secili || mesgul) return;
+    setMesgul(true);
+    const { error } = await enterContest(yarisma.id, secili);
+    if (!error) setSecili(null);
+    await yukle();
+    setMesgul(false);
+  }
+
+  return (
+    <ScrollView style={s.kap} contentContainerStyle={{ padding: 16, paddingBottom: 130 }} keyboardShouldPersistTaps="handled">
+      <GeriButon d={d} geri={geri} />
+      <Text style={[s.oynaticiAd, { marginTop: 12 }]}>{yarisma.name}</Text>
+      {!!yarisma.description && <Text style={[s.dim, { marginTop: 6, lineHeight: 20 }]}>{yarisma.description}</Text>}
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 10 }}>
+        {kalanGun !== null && !bitti && <Text style={s.dim}>{yr.kalan(kalanGun)}</Text>}
+        {bitti && <Text style={{ color: t.accent, fontWeight: "700" }}>{yr.bitti}</Text>}
+        <Text style={s.dim}>· {yr.katilimci(girisler.length)}</Text>
+      </View>
+
+      {/* Üretici katılımı: kendi yayınlanmış içeriklerinden birini seç → sok */}
+      {user && !bitti && katilabilir.length > 0 && (
+        <View style={{ marginTop: 18, padding: 14, backgroundColor: t.surface, borderWidth: 1, borderColor: t.line, borderRadius: 12 }}>
+          <Text style={{ color: t.text, fontWeight: "700", marginBottom: 4 }}>{yr.katil}</Text>
+          <Text style={[s.dim, { fontSize: 12, marginBottom: 8 }]}>{yr.sec}</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {katilabilir.map((b) => (
+              <Cip key={b.id} etiket={b.name} secili={secili === b.id} sec={() => setSecili(b.id)} />
+            ))}
+          </View>
+          <TouchableOpacity onPress={katil} disabled={!secili || mesgul} style={[s.izleDugme, { alignSelf: "flex-start", marginTop: 12, opacity: secili && !mesgul ? 1 : 0.5 }]}>
+            <Gradyan />
+            <Text style={s.izleYazi}>{yr.katil}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Sıralama + oylama */}
+      <View style={{ marginTop: 20 }}>
+        {sirali.length === 0 ? (
+          <Text style={[s.dim, { textAlign: "center", paddingVertical: 24 }]}>{yr.girisYok}</Text>
+        ) : (
+          sirali.map((b, i) => {
+            const oySayisi = oylar.get(b.id) || 0;
+            const benimki = benimOyum === b.id;
+            return (
+              <View key={String(b.id)} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: t.line }}>
+                <Text style={{ color: i === 0 ? t.accent : t.dim, width: 22, fontWeight: "800", fontSize: 15 }}>{i + 1}</Text>
+                <View style={{ width: 82, aspectRatio: 16 / 9, borderRadius: 8, overflow: "hidden", backgroundColor: t.surface2 }}>
+                  <Kapak baslik={b} harf={22} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ color: t.text, fontWeight: "600" }} numberOfLines={1}>{b.name}</Text>
+                  <Text style={s.dim} numberOfLines={1}>
+                    {yr.oy(oySayisi)}{i === 0 && oySayisi > 0 ? ` · ${yr.onde}` : ""}
+                  </Text>
+                </View>
+                {!bitti && (
+                  <TouchableOpacity onPress={() => oyla(b.id)} disabled={mesgul} style={benimki ? [s.izleDugme, { paddingHorizontal: 14, minWidth: 0 }] : [s.listemDugme]}>
+                    {benimki && <Gradyan />}
+                    <Text style={benimki ? s.izleYazi : { color: t.text, fontWeight: "600", fontSize: 13 }}>{benimki ? yr.oyun : yr.oyVer}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            );
+          })
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
 // ————— STEP 1: ücretsiz oynatma doğrulaması (geçici) —————
 // Cloudflare Stream'e para harcamadan Watch→oynatıcı→gerçek oynatma zincirini kanıtlamak
 // için, cf_uid YOKKEN (demo seed) herkese açık bir test HLS akışı oynatılır. iOS WebView
@@ -658,6 +766,7 @@ export default function App() {
               girisAc={() => setGirisAcik(true)}
               ayarlarAc={() => setAyarlarAcik(true)}
               tabloAc={() => setSekme("sanat")}
+              yarismaAc={() => setGorunum({ tip: "yarisma" })}
               oynat={oynat}
               ac={(id) => setGorunum({ tip: "detay", id })}
               aramaOdak={sekme === "discover"}
@@ -729,6 +838,14 @@ export default function App() {
           d={d}
           id={gorunum.id}
           ac={(id) => setGorunum({ tip: "detay", id })}
+          geri={() => setGorunum({ tip: "ana" })}
+        />
+      )}
+      {gorunum.tip === "yarisma" && (
+        <MobilYarisma
+          d={d}
+          user={user}
+          girisAc={() => setGirisAcik(true)}
           geri={() => setGorunum({ tip: "ana" })}
         />
       )}
@@ -1178,7 +1295,7 @@ function MobilFestivalKart({ baslik, alt, cta, vurgulu, bas }) {
     </View>
   );
 }
-function MobilFestival({ d, banner, git, tabloAc, ayarlarAc, user, girisAc, buHafta = [], ac, arama, setArama, aramaRef, sonuclar }) {
+function MobilFestival({ d, banner, git, tabloAc, yarismaAc, ayarlarAc, user, girisAc, buHafta = [], ac, arama, setArama, aramaRef, sonuclar }) {
   const f = d.festival;
   const link = banner?.link_url && /^https?:\/\//i.test(banner.link_url) ? banner.link_url : null;
   const aramaAktif = sonuclar !== null; // ≥2 karakter → arama sonuçları (festival landing yerine)
@@ -1193,8 +1310,8 @@ function MobilFestival({ d, banner, git, tabloAc, ayarlarAc, user, girisAc, buHa
           accessibilityLabel="Vaelo"
         />
         <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-          <TouchableOpacity style={s.dilDugme} onPress={tabloAc}>
-            <Text style={s.dilYazi}>{d.tablo.etiket}</Text>
+          <TouchableOpacity style={s.dilDugme} onPress={yarismaAc}>
+            <Text style={s.dilYazi}>{d.yarisma.etiket}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.dilDugme} onPress={ayarlarAc}>
             <Text style={[s.dilYazi, { fontSize: 15 }]}>⚙</Text>
@@ -1272,7 +1389,7 @@ function MobilFestival({ d, banner, git, tabloAc, ayarlarAc, user, girisAc, buHa
 }
 
 // ————— Ana: hero + açıklamalı dikey akış + akıllı arama —————
-function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac, aramaOdak, festivalGit }) {
+function Ana({ d, user, girisAc, ayarlarAc, tabloAc, yarismaAc, oynat, ac, aramaOdak, festivalGit }) {
   const aramaRef = useRef(null);
   useEffect(() => {
     if (aramaOdak) aramaRef.current?.focus();
@@ -1355,6 +1472,7 @@ function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac, aramaOdak, festi
         banner={banner}
         git={festivalGit}
         tabloAc={tabloAc}
+        yarismaAc={yarismaAc}
         ayarlarAc={ayarlarAc}
         user={user}
         girisAc={girisAc}
@@ -1441,11 +1559,11 @@ function Ana({ d, user, girisAc, ayarlarAc, tabloAc, oynat, ac, aramaOdak, festi
       <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
         <TouchableOpacity
           style={s.dilDugme}
-          onPress={tabloAc}
+          onPress={yarismaAc}
           accessibilityRole="button"
-          accessibilityLabel={d.tablo.etiket}
+          accessibilityLabel={d.yarisma.etiket}
         >
-          <Text style={s.dilYazi}>{d.tablo.etiket}</Text>
+          <Text style={s.dilYazi}>{d.yarisma.etiket}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={s.dilDugme}

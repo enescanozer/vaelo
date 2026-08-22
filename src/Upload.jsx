@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { useLang } from "./i18n";
 import { t } from "./theme";
+import { turAdi } from "./catalog";
 
 export default function Upload({ user, admin }) {
   const { s } = useLang();
@@ -13,7 +14,7 @@ export default function Upload({ user, admin }) {
 
   // Yeni başlık alanları
   const [ad, setAd] = useState("");
-  const [tip, setTip] = useState("film"); // "film" | "dizi"
+  const [tip, setTip] = useState("kisa_film"); // "kisa_film" | "uzun_film" | "dizi" (kategori)
   const [tur, setTur] = useState("");
   const [yil, setYil] = useState(new Date().getFullYear());
   const [aciklama, setAciklama] = useState("");
@@ -171,7 +172,7 @@ export default function Upload({ user, admin }) {
             <option value="yeni">{s.yukle.yeniBaslik}</option>
             {basliklarim.map((b) => (
               <option key={b.id} value={b.id}>
-                {b.name} ({b.kind === "dizi" ? s.genel.dizi : s.genel.film})
+                {b.name} ({turAdi(b.kind, s)})
               </option>
             ))}
           </select>
@@ -187,7 +188,8 @@ export default function Upload({ user, admin }) {
               <div>
                 <label style={etiketStil}>{s.yukle.tip}</label>
                 <select style={alanStil} value={tip} onChange={(e) => setTip(e.target.value)}>
-                  <option value="film">{s.genel.film}</option>
+                  <option value="kisa_film">{s.genel.kisaFilm}</option>
+                  <option value="uzun_film">{s.genel.uzunFilm}</option>
                   <option value="dizi">{s.genel.dizi}</option>
                 </select>
               </div>
