@@ -2285,10 +2285,12 @@ function Oynatici({ d, dil, video, baslik, user, altyaziDil, oynat, geri, girisA
   const [sohbetAcik, setSohbetAcik] = useState(false); // Topluluk: sayfa içinde (inline) açılır
   const [ekli, setEkli] = useState(null); // Listem: null bilinmiyor (Detay'dan taşındı)
   const [uretici, setUretici] = useState(null); // üretici kartı: ad + sosyal (Detay'dan taşındı)
-  const kaydirRef = useRef(null); // Topluluk açılınca sayfayı altına kaydır
+  const kaydirRef = useRef(null); // Topluluk açılınca sayfayı bölümün başına kaydır
+  const sohbetYRef = useRef(0); // Topluluk bölümünün ScrollView içindeki y konumu (onLayout)
   useEffect(() => {
     if (!sohbetAcik) return;
-    const z = setTimeout(() => kaydirRef.current?.scrollToEnd({ animated: true }), 250);
+    // Bölümün başına kaydır (en alta değil) → başlık videoya yapışıp kırpılmaz
+    const z = setTimeout(() => kaydirRef.current?.scrollTo({ y: Math.max(0, sohbetYRef.current - 8), animated: true }), 300);
     return () => clearTimeout(z);
   }, [sohbetAcik]);
   // Açılışta izlenme kaydı (girişliyse user_id ile → "devam et"; bölüm değişince yenisi)
@@ -2467,11 +2469,13 @@ function Oynatici({ d, dil, video, baslik, user, altyaziDil, oynat, geri, girisA
         )}
 
         {/* Topluluk — sayfa içinde (inline) sayfanın altına doğru açılır (yeni sayfa açmaz) */}
-        <Topluluk
-          inline
-          d={d} dil={dil} oda={`ep:${video.id}`} user={user}
-          girisAc={girisAc} gorunur={sohbetAcik} kapat={() => setSohbetAcik(false)}
-        />
+        <View onLayout={(e) => { sohbetYRef.current = e.nativeEvent.layout.y; }}>
+          <Topluluk
+            inline
+            d={d} dil={dil} oda={`ep:${video.id}`} user={user}
+            girisAc={girisAc} gorunur={sohbetAcik} kapat={() => setSohbetAcik(false)}
+          />
+        </View>
       </ScrollView>
     </View>
   );

@@ -5,7 +5,7 @@
 // Moderasyon forum-post içinde (değişmez). Renkler App.js paletiyle AYNI (self-contained → circular dep yok).
 import { useEffect, useRef, useState } from "react";
 import {
-  Modal, View, Text, TextInput, TouchableOpacity, FlatList,
+  Modal, View, Text, TextInput, TouchableOpacity, FlatList, ScrollView,
   KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -58,7 +58,8 @@ export default function Topluluk({ d, dil, oda, user, girisAc, gorunur, kapat, i
   const [kilitli, setKilitli] = useState(false);
   const [yanitHedef, setYanitHedef] = useState(null);
   const [prefill, setPrefill] = useState(null); // mention tıklama → composer'a ekle
-  const listeRef = useRef(null);
+  const listeRef = useRef(null); // FlatList (Modal modu)
+  const icListeRef = useRef(null); // düz ScrollView (inline modu → VirtualizedList uyarısı yok)
 
   // id ile tekilleştir (optimistik + realtime yankısı çakışmaz)
   function ekle(m) {
@@ -172,20 +173,55 @@ export default function Topluluk({ d, dil, oda, user, girisAc, gorunur, kapat, i
 
   // Inline: yeni sayfa AÇMAZ — çağıran ScrollView'ın içinde, sayfanın altına doğru açılır.
   // Video ScrollView'ın dışında sabit olduğundan burada da video DURMAZ.
+  // Mesajlar düz ScrollView ile (FlatList değil) → "VirtualizedList nested" uyarısı olmaz.
   if (inline) {
     if (!gorunur) return null;
+    const icListe = mesajlar === null ? (
+      <View style={{ paddingVertical: 32, alignItems: "center" }}><ActivityIndicator color={C.accent} /></View>
+    ) : mesajlar.length === 0 ? (
+      <View style={{ paddingVertical: 32, paddingHorizontal: 20, alignItems: "center" }}>
+        <Text style={{ color: C.dim, fontSize: 14, textAlign: "center" }}>{sh.bos}</Text>
+      </View>
+    ) : (
+      <ScrollView
+        ref={icListeRef}
+        nestedScrollEnabled
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ padding: 16, gap: 16 }}
+        onContentSizeChange={() => icListeRef.current?.scrollToEnd({ animated: false })}
+      >
+        {mesajlar.map((item) => (
+          <SohbetMesaj
+            key={String(item.id)}
+            m={item} user={user} sh={sh} dil={dil}
+            onBegen={() => begenDegis(item)}
+            onYanitla={() => setYanitHedef(item)}
+            onScrollTo={mesajaScroll}
+            onMention={mentionTikla}
+            onSil={mesajSil}
+            onDuzenle={mesajDuzenle}
+          />
+        ))}
+      </ScrollView>
+    );
     return (
-      <View style={{ marginTop: 22, borderTopWidth: 1, borderTopColor: C.line, paddingTop: 16 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-          <Text style={{ flex: 1, color: C.text, fontSize: 17, fontWeight: "800" }}>{sh.baslik}</Text>
-          <TouchableOpacity onPress={kapat} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Text style={{ color: C.dim, fontSize: 20 }}>✕</Text>
+      <View style={{ marginTop: 26, borderTopWidth: 1, borderTopColor: C.line, paddingTop: 18 }}>
+        {/* Başlık */}
+        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14 }}>
+          <Text style={{ flex: 1, color: C.text, fontSize: 17, fontWeight: "800" }}>💬  {sh.baslik}</Text>
+          <TouchableOpacity
+            onPress={kapat}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: C.line, alignItems: "center", justifyContent: "center" }}
+          >
+            <Text style={{ color: C.dim, fontSize: 15 }}>✕</Text>
           </TouchableOpacity>
         </View>
-        <View style={{ height: 380, borderWidth: 1, borderColor: C.line, borderRadius: 12, overflow: "hidden", backgroundColor: C.surface }}>
-          {liste}
+        {/* Mesaj kutusu: içeriğe göre büyür, en fazla 360 → kompakt, boş görünmez */}
+        <View style={{ maxHeight: 360, borderWidth: 1, borderColor: C.line, borderRadius: 14, backgroundColor: C.surface, overflow: "hidden" }}>
+          {icListe}
         </View>
-        {yazac}
+        <View style={{ marginTop: 10 }}>{yazac}</View>
       </View>
     );
   }
