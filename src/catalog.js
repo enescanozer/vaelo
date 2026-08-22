@@ -431,6 +431,16 @@ export async function getOneri(userId, topN = 12) {
   if (error) return [];
   return (data ?? []).map((r) => r.title_id);
 }
+// A/B testi (admin): iki strateji arasında 50/50 böl
+export function setOneriAb(aktif, a, b) {
+  return supabase.rpc("set_oneri_ab", { p_aktif: aktif, p_a: a || null, p_b: b || null });
+}
+// Strateji performansı (admin): son N gün sunum + etkileşim proxy
+export async function getOneriPerformans(gun = 7) {
+  const { data, error } = await supabase.rpc("oneri_performans", { p_gun: gun });
+  if (error) return [];
+  return data ?? [];
+}
 
 // İçerik türü (kategori) etiketi: dizi · kısa film · uzun film · film (eski/genel)
 export function turAdi(kind, s) {

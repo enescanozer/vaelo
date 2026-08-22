@@ -281,7 +281,7 @@ export const METINLER = {
     },
     panel: {
       basvuruBaslik: "Creator requests",
-      oneri: { baslik: "Recommendation algorithm", aciklama: "Choose which algorithm powers 'For you'. Applies instantly.", kisiselAd: "Personalized", kisiselAcikla: "Viewer's favorite genres & watch history.", trendingAd: "Trending", trendingAcikla: "Recent watch velocity + votes. Best for new users.", aktif: "Active", sonDegisim: "Last changed" },
+      oneri: { baslik: "Recommendation algorithm", aciklama: "Choose which algorithm powers 'For you'. Applies instantly.", kisiselAd: "Personalized", kisiselAcikla: "Viewer's favorite genres & watch history.", trendingAd: "Trending", trendingAcikla: "Recent watch velocity + votes. Best for new users.", aktif: "Active", sonDegisim: "Last changed", collaborativeAd: "Collaborative", collaborativeAcikla: "What similar viewers watched. Needs enough users.", abBaslik: "A/B test", abAcikla: "Split users 50/50 between two strategies.", abAc: "Enable A/B", perfBaslik: "Performance (7 days)", perfSunum: "Serves", perfOran: "Engagement" },
       basvuruAciklama: "Approve who can upload. Approving sets their role to creator.",
       basvuruYok: "No requests.",
       basvuruOnayla: "Approve",
@@ -742,7 +742,7 @@ export const METINLER = {
     },
     panel: {
       basvuruBaslik: "Заявки авторов",
-      oneri: { baslik: "Алгоритм рекомендаций", aciklama: "Выберите алгоритм для «Для вас». Применяется сразу.", kisiselAd: "Персональный", kisiselAcikla: "Любимые жанры и история просмотров.", trendingAd: "В тренде", trendingAcikla: "Скорость просмотров + голоса. Для новых пользователей.", aktif: "Активен", sonDegisim: "Изменено" },
+      oneri: { baslik: "Алгоритм рекомендаций", aciklama: "Выберите алгоритм для «Для вас». Применяется сразу.", kisiselAd: "Персональный", kisiselAcikla: "Любимые жанры и история просмотров.", trendingAd: "В тренде", trendingAcikla: "Скорость просмотров + голоса. Для новых пользователей.", aktif: "Активен", sonDegisim: "Изменено", collaborativeAd: "Совместный", collaborativeAcikla: "Что смотрели похожие зрители. Нужно достаточно пользователей.", abBaslik: "A/B тест", abAcikla: "Разделить пользователей 50/50 между двумя стратегиями.", abAc: "Включить A/B", perfBaslik: "Показатели (7 дней)", perfSunum: "Показы", perfOran: "Вовлечённость" },
       basvuruAciklama: "Одобряйте, кто может загружать. Одобрение назначает роль «автор».",
       basvuruYok: "Нет заявок.",
       basvuruOnayla: "Одобрить",
@@ -1203,7 +1203,7 @@ export const METINLER = {
     },
     panel: {
       basvuruBaslik: "创作者申请",
-      oneri: { baslik: "推荐算法", aciklama: "选择为'为你推荐'提供支持的算法。即时生效。", kisiselAd: "个性化", kisiselAcikla: "观众喜欢的类型和观看历史。", trendingAd: "热门", trendingAcikla: "近期观看速度 + 投票。适合新用户。", aktif: "已启用", sonDegisim: "上次更改" },
+      oneri: { baslik: "推荐算法", aciklama: "选择为'为你推荐'提供支持的算法。即时生效。", kisiselAd: "个性化", kisiselAcikla: "观众喜欢的类型和观看历史。", trendingAd: "热门", trendingAcikla: "近期观看速度 + 投票。适合新用户。", aktif: "已启用", sonDegisim: "上次更改", collaborativeAd: "协同", collaborativeAcikla: "相似观众看过的内容。需要足够用户。", abBaslik: "A/B 测试", abAcikla: "将用户在两种策略间 50/50 分流。", abAc: "启用 A/B", perfBaslik: "表现（7 天）", perfSunum: "展示", perfOran: "互动" },
       basvuruAciklama: "审批谁可以上传。通过后将其角色设为创作者。",
       basvuruYok: "暂无申请。",
       basvuruOnayla: "通过",
@@ -1664,7 +1664,7 @@ export const METINLER = {
     },
     panel: {
       basvuruBaslik: "طلبات المنشئين",
-      oneri: { baslik: "خوارزمية التوصية", aciklama: "اختر الخوارزمية التي تشغّل 'لك'. تُطبَّق فورًا.", kisiselAd: "مخصّص", kisiselAcikla: "الأنواع المفضّلة وسجل المشاهدة.", trendingAd: "الرائج", trendingAcikla: "سرعة المشاهدة الأخيرة + الأصوات. للمستخدمين الجدد.", aktif: "نشط", sonDegisim: "آخر تغيير" },
+      oneri: { baslik: "خوارزمية التوصية", aciklama: "اختر الخوارزمية التي تشغّل 'لك'. تُطبَّق فورًا.", kisiselAd: "مخصّص", kisiselAcikla: "الأنواع المفضّلة وسجل المشاهدة.", trendingAd: "الرائج", trendingAcikla: "سرعة المشاهدة الأخيرة + الأصوات. للمستخدمين الجدد.", aktif: "نشط", sonDegisim: "آخر تغيير", collaborativeAd: "تعاوني", collaborativeAcikla: "ما شاهده مشاهدون مشابهون. يحتاج مستخدمين كفاية.", abBaslik: "اختبار A/B", abAcikla: "قسّم المستخدمين 50/50 بين استراتيجيتين.", abAc: "تفعيل A/B", perfBaslik: "الأداء (7 أيام)", perfSunum: "عرض", perfOran: "تفاعل" },
       basvuruAciklama: "وافق على من يمكنه الرفع. الموافقة تمنح دور المنشئ.",
       basvuruYok: "لا طلبات.",
       basvuruOnayla: "موافقة",
@@ -2125,7 +2125,7 @@ export const METINLER = {
     },
     panel: {
       basvuruBaslik: "Üretici başvuruları",
-      oneri: { baslik: "Öneri algoritması", aciklama: "'Sana özel'i hangi algoritma besleyecek. Anında uygulanır.", kisiselAd: "Kişisel", kisiselAcikla: "İzleyicinin sevdiği türler ve izleme geçmişi.", trendingAd: "Trend", trendingAcikla: "Son izlenme hızı + oylar. Yeni kullanıcılar için ideal.", aktif: "Aktif", sonDegisim: "Son değişiklik" },
+      oneri: { baslik: "Öneri algoritması", aciklama: "'Sana özel'i hangi algoritma besleyecek. Anında uygulanır.", kisiselAd: "Kişisel", kisiselAcikla: "İzleyicinin sevdiği türler ve izleme geçmişi.", trendingAd: "Trend", trendingAcikla: "Son izlenme hızı + oylar. Yeni kullanıcılar için ideal.", aktif: "Aktif", sonDegisim: "Son değişiklik", collaborativeAd: "Ortak", collaborativeAcikla: "Benzer izleyicilerin izledikleri. Yeterli kullanıcı gerekir.", abBaslik: "A/B testi", abAcikla: "Kullanıcıları iki strateji arasında 50/50 böl.", abAc: "A/B'yi aç", perfBaslik: "Performans (7 gün)", perfSunum: "Sunum", perfOran: "Etkileşim" },
       basvuruAciklama: "Kimlerin video yükleyebileceğini onayla. Onaylayınca rolü 'creator' olur.",
       basvuruYok: "Başvuru yok.",
       basvuruOnayla: "Onayla",
@@ -2585,7 +2585,7 @@ export const METINLER = {
     },
     panel: {
       basvuruBaslik: "Solicitudes de creador",
-      oneri: { baslik: "Algoritmo de recomendación", aciklama: "Elige qué algoritmo impulsa 'Para ti'. Se aplica al instante.", kisiselAd: "Personalizado", kisiselAcikla: "Géneros favoritos e historial del espectador.", trendingAd: "Tendencia", trendingAcikla: "Velocidad de visionado reciente + votos. Ideal para nuevos.", aktif: "Activo", sonDegisim: "Último cambio" },
+      oneri: { baslik: "Algoritmo de recomendación", aciklama: "Elige qué algoritmo impulsa 'Para ti'. Se aplica al instante.", kisiselAd: "Personalizado", kisiselAcikla: "Géneros favoritos e historial del espectador.", trendingAd: "Tendencia", trendingAcikla: "Velocidad de visionado reciente + votos. Ideal para nuevos.", aktif: "Activo", sonDegisim: "Último cambio", collaborativeAd: "Colaborativo", collaborativeAcikla: "Lo que vieron espectadores similares. Necesita suficientes usuarios.", abBaslik: "Test A/B", abAcikla: "Divide usuarios 50/50 entre dos estrategias.", abAc: "Activar A/B", perfBaslik: "Rendimiento (7 días)", perfSunum: "Entregas", perfOran: "Interacción" },
       basvuruAciklama: "Aprueba quién puede subir. Al aprobar, su rol pasa a creador.",
       basvuruYok: "Sin solicitudes.",
       basvuruOnayla: "Aprobar",
@@ -3052,7 +3052,7 @@ export const METINLER = {
     },
     panel: {
       basvuruBaslik: "Creator-Anfragen",
-      oneri: { baslik: "Empfehlungsalgorithmus", aciklama: "Wähle, welcher Algorithmus 'Für dich' steuert. Sofort aktiv.", kisiselAd: "Personalisiert", kisiselAcikla: "Lieblingsgenres & Verlauf des Zuschauers.", trendingAd: "Trend", trendingAcikla: "Aktuelle Sehgeschwindigkeit + Stimmen. Ideal für Neue.", aktif: "Aktiv", sonDegisim: "Zuletzt geändert" },
+      oneri: { baslik: "Empfehlungsalgorithmus", aciklama: "Wähle, welcher Algorithmus 'Für dich' steuert. Sofort aktiv.", kisiselAd: "Personalisiert", kisiselAcikla: "Lieblingsgenres & Verlauf des Zuschauers.", trendingAd: "Trend", trendingAcikla: "Aktuelle Sehgeschwindigkeit + Stimmen. Ideal für Neue.", aktif: "Aktiv", sonDegisim: "Zuletzt geändert", collaborativeAd: "Kollaborativ", collaborativeAcikla: "Was ähnliche Zuschauer sahen. Braucht genug Nutzer.", abBaslik: "A/B-Test", abAcikla: "Nutzer 50/50 auf zwei Strategien aufteilen.", abAc: "A/B aktivieren", perfBaslik: "Leistung (7 Tage)", perfSunum: "Auslieferungen", perfOran: "Interaktion" },
       basvuruAciklama: "Genehmige, wer hochladen darf. Bei Freigabe wird die Rolle zu Creator.",
       basvuruYok: "Keine Anfragen.",
       basvuruOnayla: "Freigeben",
@@ -3518,7 +3518,7 @@ export const METINLER = {
     },
     panel: {
       basvuruBaslik: "Demandes créateur",
-      oneri: { baslik: "Algorithme de recommandation", aciklama: "Choisis l'algorithme derrière 'Pour toi'. Appliqué aussitôt.", kisiselAd: "Personnalisé", kisiselAcikla: "Genres favoris et historique du spectateur.", trendingAd: "Tendance", trendingAcikla: "Vélocité de visionnage récente + votes. Idéal pour les nouveaux.", aktif: "Actif", sonDegisim: "Dernière modification" },
+      oneri: { baslik: "Algorithme de recommandation", aciklama: "Choisis l'algorithme derrière 'Pour toi'. Appliqué aussitôt.", kisiselAd: "Personnalisé", kisiselAcikla: "Genres favoris et historique du spectateur.", trendingAd: "Tendance", trendingAcikla: "Vélocité de visionnage récente + votes. Idéal pour les nouveaux.", aktif: "Actif", sonDegisim: "Dernière modification", collaborativeAd: "Collaboratif", collaborativeAcikla: "Ce que des spectateurs similaires ont regardé. Nécessite assez d'utilisateurs.", abBaslik: "Test A/B", abAcikla: "Répartir les utilisateurs 50/50 entre deux stratégies.", abAc: "Activer l'A/B", perfBaslik: "Performance (7 jours)", perfSunum: "Diffusions", perfOran: "Engagement" },
       basvuruAciklama: "Approuve qui peut envoyer. L'approbation attribue le rôle créateur.",
       basvuruYok: "Aucune demande.",
       basvuruOnayla: "Approuver",

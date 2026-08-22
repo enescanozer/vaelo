@@ -26,6 +26,8 @@ import {
   turAdi,
   getOneriStrateji,
   setOneriStrateji,
+  setOneriAb,
+  getOneriPerformans,
 } from "./catalog";
 import { useLang } from "./i18n";
 import { t } from "./theme";
@@ -36,8 +38,10 @@ function OneriStratejiKontrol() {
   const o = s.panel.oneri;
   const [cfg, setCfg] = useState(null);
   const [islemde, setIslemde] = useState(false);
+  const [perf, setPerf] = useState([]);
   useEffect(() => {
     getOneriStrateji().then(setCfg).catch(() => {});
+    getOneriPerformans(7).then(setPerf).catch(() => {});
   }, []);
   async function sec(strat) {
     if (islemde || cfg?.active_strategy === strat) return;
@@ -49,15 +53,27 @@ function OneriStratejiKontrol() {
     else setCfg((c) => ({ ...(c || {}), active_strategy: strat, updated_at: new Date().toISOString() }));
     setIslemde(false);
   }
+  async function abKaydet(patch) {
+    const yeni = {
+      ab_aktif: cfg?.ab_aktif ?? false,
+      ab_a: cfg?.ab_a ?? "kisisel",
+      ab_b: cfg?.ab_b ?? "trending",
+      ...patch,
+    };
+    setCfg((c) => ({ ...(c || {}), ...yeni }));
+    await setOneriAb(yeni.ab_aktif, yeni.ab_a, yeni.ab_b);
+  }
   const kartlar = [
     { id: "kisisel", ad: o.kisiselAd, aciklama: o.kisiselAcikla },
     { id: "trending", ad: o.trendingAd, aciklama: o.trendingAcikla },
+    { id: "collaborative", ad: o.collaborativeAd, aciklama: o.collaborativeAcikla },
   ];
+  const stratAd = { kisisel: o.kisiselAd, trending: o.trendingAd, collaborative: o.collaborativeAd };
   return (
     <div style={{ marginBottom: 32, padding: 20, background: t.surface, border: `1px solid ${t.line}`, borderRadius: 12 }}>
       <div style={{ fontFamily: t.display, fontWeight: 700, fontSize: 17 }}>{o.baslik}</div>
       <div style={{ color: t.dim, fontSize: 13, marginTop: 4, marginBottom: 14 }}>{o.aciklama}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12 }}>
         {kartlar.map((k) => {
           const aktif = cfg?.active_strategy === k.id;
           return (
@@ -90,6 +106,48 @@ function OneriStratejiKontrol() {
       {cfg?.updated_at && (
         <div style={{ color: t.dim, fontSize: 11, marginTop: 12 }}>
           {o.sonDegisim}: {new Date(cfg.updated_at).toLocaleString(s.locale)}
+        </div>
+      )}
+
+      {/* A/B testi: kullanıcıları iki strateji arasında 50/50 böl */}
+      <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${t.line}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{ fontWeight: 700, fontSize: 14 }}>{o.abBaslik}</span>
+          <button
+            onClick={() => abKaydet({ ab_aktif: !cfg?.ab_aktif })}
+            style={{ ...kucukBtn(cfg?.ab_aktif ? "#0A0A0B" : t.dim), background: cfg?.ab_aktif ? t.accent : "none", border: `1px solid ${cfg?.ab_aktif ? t.accent : t.line}`, fontWeight: 700 }}
+          >
+            {o.abAc}{cfg?.ab_aktif ? " ✓" : ""}
+          </button>
+          {cfg?.ab_aktif && (
+            <>
+              <span style={{ color: t.dim, fontSize: 12 }}>A</span>
+              <select style={girisStil} value={cfg?.ab_a ?? "kisisel"} onChange={(e) => abKaydet({ ab_a: e.target.value })}>
+                {Object.keys(stratAd).map((k) => <option key={k} value={k}>{stratAd[k]}</option>)}
+              </select>
+              <span style={{ color: t.dim, fontSize: 12 }}>B</span>
+              <select style={girisStil} value={cfg?.ab_b ?? "trending"} onChange={(e) => abKaydet({ ab_b: e.target.value })}>
+                {Object.keys(stratAd).map((k) => <option key={k} value={k}>{stratAd[k]}</option>)}
+              </select>
+            </>
+          )}
+        </div>
+        <div style={{ color: t.dim, fontSize: 12, marginTop: 6 }}>{o.abAcikla}</div>
+      </div>
+
+      {/* Strateji performansı (attribution proxy) */}
+      {perf.length > 0 && (
+        <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${t.line}` }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10 }}>{o.perfBaslik}</div>
+          <div style={{ display: "grid", gap: 6 }}>
+            {perf.map((p) => (
+              <div key={p.strategy} style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 13, padding: "8px 12px", background: t.surface2, border: `1px solid ${t.line}`, borderRadius: 8 }}>
+                <span style={{ fontWeight: 600, flex: 1, minWidth: 0 }}>{stratAd[p.strategy] ?? p.strategy}</span>
+                <span style={{ color: t.dim }}>{o.perfSunum}: {Number(p.sunum).toLocaleString(s.locale)}</span>
+                <span style={{ color: t.accent, fontWeight: 700 }}>{o.perfOran}: {Number(p.oran)}%</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
